@@ -113,11 +113,17 @@ def generate_script():
         # python (qgis package only)
         mkdir -p $PACKAGE/usr/lib/python3/dist-packages
         cp -r output/python/qgis $PACKAGE/usr/lib/python3/dist-packages
-        
-        # resources (no depth)
+
+        # data:
+        # - QGIS/_BUILD/output/data
+        # - QGIS/_BUILD/resources
+        # - QGIS/resources
+         
         mkdir -p $PACKAGE/usr/share/qgis/resources
-        cp ../resources/* $PACKAGE/usr/share/qgis/resources
-        cp -r ../resources/server $PACKAGE/usr/share/qgis/resources
+        
+        cp -r output/data/*    $PACKAGE/usr/share/qgis
+        cp -r resources/*      $PACKAGE/usr/share/qgis/resources
+        cp -r ../resources/*   $PACKAGE/usr/share/qgis/resources
         
         # svgs
         cp -r  ../images/svg $PACKAGE/usr/share/qgis
