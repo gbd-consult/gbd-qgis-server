@@ -1,6 +1,10 @@
+# This file is used to configure non-default arguments to cmake.
+# The format is <variable | our value | default value | comment>
+# Our overrides are marked with '*'
+
     AGGRESSIVE_SAFE_MODE                     | FALSE    | FALSE    | Forces a aggressive safe mode where issues like unsafe thread access will resort in fatal exceptions
     BINDINGS_GLOBAL_INSTALL                  | FALSE    | FALSE    | Install bindings to global Python directory? (might need root)
-BUILD_TESTING                            | OFF      | ON       | Build the testing tree.
+*BUILD_TESTING                            | OFF      | ON       | Build the testing tree.
     BUILD_WITH_QT6                           | FALSE    | FALSE    | Enable (experimental) Qt6 support
     ENABLE_COVERAGE                          | FALSE    | FALSE    | Perform coverage tests?
     ENABLE_HANATEST                          | FALSE    | FALSE    | Enable HANA provider tests
@@ -10,26 +14,26 @@ BUILD_TESTING                            | OFF      | ON       | Build the testi
     ENABLE_MSSQLTEST_CPP                     | FALSE    | FALSE    | Enable MSSQL provider C++ tests
     ENABLE_ORACLETEST                        | FALSE    | FALSE    | Enable Oracle provider tests
     ENABLE_PGTEST                            | FALSE    | FALSE    | Enable PostgreSQL provider tests
-ENABLE_TESTS                             | FALSE    | TRUE     | Build unit tests?
+*ENABLE_TESTS                             | FALSE    | TRUE     | Build unit tests?
     GENERATE_COVERAGE_DOCS                   | FALSE    | FALSE    | Generate coverage docs (requires lcov)?
     HAS_KDE_QT5_PDF_TRANSFORM_FIX            | FALSE    | FALSE    | Using KDE's Qt 5.15 fork with the PDF brush transform fix
     HAS_KDE_QT5_SMALL_CAPS_FIX               | FALSE    | FALSE    | Using KDE's Qt 5.15 fork with the QFont::SmallCaps fix
-PEDANTIC                                 | FALSE    | TRUE     | Determines if we should compile in pedantic mode.
+*PEDANTIC                                 | FALSE    | TRUE     | Determines if we should compile in pedantic mode.
     PUSH_TO_CDASH                            | FALSE    | FALSE    | Determines whether test results should be pushed to CDASH site
-QGIS_INSTALL_SYS_LIBS                    | FALSE     | TRUE     | If set to TRUE install all required system libs in the output package
+    QGIS_INSTALL_SYS_LIBS                    | TRUE     | TRUE     | If set to TRUE install all required system libs in the output package
     SIP_GLOBAL_INSTALL                       | FALSE    | FALSE    | Install sip source files to system sip directory? (might need root)
     USE_OPENCL                               | ON       | ON       | Use OpenCL
     WERROR                                   | FALSE    | FALSE    | Treat build warnings as errors.
-    WITH_3D                                  | TRUE     | TRUE     | Determines whether QGIS 3D library should be built
+*WITH_3D                                  | FALSE     | TRUE     | Determines whether QGIS 3D library should be built
     WITH_ANALYSIS                            | TRUE     | TRUE     | Determines whether QGIS analysis library should be built
     WITH_APIDOC                              | FALSE    | FALSE    | Determines whether the QGIS API doxygen documentation should be built
     WITH_ASTYLE                              | FALSE    | FALSE    | Deprecated. Should be OFF. If you plan to contribute you should reindent with scripts/prepare_commit.sh (using 'our' astyle)
     WITH_AUTH                                | TRUE     | TRUE     | Determines whether QGIS authentication methods should be built
     WITH_BINDINGS                            | TRUE     | TRUE     | Determines whether Python bindings should be built
     WITH_COPC                                | TRUE     | TRUE     | Determines whether Cloud Optimized Point Cloud (COPC) support should be built
-WITH_CRASH_HANDLER                       | FALSE     | TRUE     | Determines whether the QGIS crash handler application should be built
+*WITH_CRASH_HANDLER                       | FALSE     | TRUE     | Determines whether the QGIS crash handler application should be built
     WITH_CUSTOM_WIDGETS                      | FALSE    | FALSE    | Determines whether QGIS custom widgets for Qt Designer should be built
-WITH_DESKTOP                             | FALSE     | TRUE     | Determines whether QGIS desktop should be built
+*WITH_DESKTOP                             | FALSE     | TRUE     | Determines whether QGIS desktop should be built
     WITH_DRACO                               | TRUE     | TRUE     | Determines whether Draco support should be built
     WITH_EPT                                 | TRUE     | TRUE     | Determines whether Entwine Point Cloud (EPT) support should be built
     WITH_GRASS7                              | TRUE     | TRUE     | Determines whether GRASS 7 plugin should be built
@@ -47,13 +51,13 @@ WITH_DESKTOP                             | FALSE     | TRUE     | Determines whe
     WITH_PDAL                                | TRUE     | TRUE     | Determines whether PDAL support should be built
     WITH_POSTGRESQL                          | TRUE     | TRUE     | Determines whether POSTGRESQL support should be built
     WITH_PY_COMPILE                          | FALSE    | FALSE    | Determines whether Python modules in staged or installed locations should be byte-compiled
-WITH_QGIS_PROCESS                        | FALSE     | TRUE     | Determines whether the standalone "qgis_process" tool should be built
+    WITH_QGIS_PROCESS                        | TRUE     | TRUE     | Determines whether the standalone "qgis_process" tool should be built
     WITH_QSPATIALITE                         | FALSE    | FALSE    | Determines whether QSPATIALITE sql driver should be built
     WITH_QTGAMEPAD                           | FALSE    | FALSE    | Determines whether QtGamepad should be tried for GPS positioning
-WITH_QTSERIALPORT                        | FALSE     | TRUE     | Determines whether QtSerialPort should be tried for GPS positioning
+*WITH_QTSERIALPORT                        | FALSE     | TRUE     | Determines whether QtSerialPort should be tried for GPS positioning
     WITH_QTWEBKIT                            | TRUE     | TRUE     | Enable QtWebkit support
     WITH_QUICK                               | FALSE    | FALSE    | Determines whether QGIS Quick library should be built
     WITH_QWTPOLAR                            | FALSE    | FALSE    | Determines whether QwtPolar is available or whether functionality requiring QwtPolar should be disabled.
-WITH_SERVER                              | TRUE    | FALSE    | Determines whether QGIS server should be built
+*WITH_SERVER                              | TRUE    | FALSE    | Determines whether QGIS server should be built
     WITH_SPATIALITE                          | TRUE     | TRUE     | Determines whether Spatialite support should be built (required for spatialite, virtual, wfs providers)
-WITH_STAGED_PLUGINS                      | FALSE     | TRUE     | Stage-install core Python plugins to run from build directory? (utilities and console are always staged)
+    WITH_STAGED_PLUGINS                      | TRUE     | TRUE     | Stage-install core Python plugins to run from build directory? (utilities and console are always staged)

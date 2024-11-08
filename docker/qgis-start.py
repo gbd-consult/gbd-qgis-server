@@ -3,8 +3,10 @@
 import os
 import urllib.parse
 
-USER_UID = 1000
-USER_GID = 1000
+GWS_UID = int(os.getenv('GWS_UID', '1000'))
+GWS_GID = int(os.getenv('GWS_GID', '1000'))
+
+USER_NAME = 'gws'
 
 QGIS_DEBUG = os.getenv('QGIS_DEBUG', '0')
 QGIS_WORKERS = os.getenv('QGIS_WORKERS', 1)
@@ -94,11 +96,11 @@ _('mkdir -p /qgis/profiles/profiles/default/QGIS')
 _('mkdir -p /qgis/cache/gdal')
 _('mkdir -p /qgis/cache/network')
 _('mkdir -p /qgis/cache/server')
-_(f'chown -R {USER_UID}:{USER_GID} /qgis')
+_(f'chown -R {GWS_UID}:{GWS_GID} /qgis')
 
 _('mkdir -p /var/run')
 _('chmod 777 /var/run')
-_(f'chown -R {USER_UID}:{USER_GID} /var/run')
+_(f'chown -R {GWS_UID}:{GWS_GID} /var/run')
 
 # qgis config
 # ------------------------------------------------------------------------------------
@@ -135,15 +137,15 @@ searchPathsForSVG={svg_paths}
 """
 
 write('/qgis/profiles/default/QGIS/QGIS3.ini', qgis_ini)
-_(f'chown -R {USER_UID}:{USER_GID} /qgis')
+_(f'chown -R {GWS_UID}:{GWS_GID} /qgis')
 
 # uwsgi config
 # ------------------------------------------------------------------------------------
 
 uwsgi_ini = fr"""
 [uwsgi]
-uid = {USER_UID}
-gid = {USER_GID}
+uid = {GWS_UID}
+gid = {GWS_GID}
 chmod-socket = 666
 fastcgi-socket = /var/run/uwsgi.sock
 daemonize = true
@@ -178,7 +180,7 @@ extra_fcgi_params = '\n'.join(
 )
 
 nginx_conf = fr"""
-user gws;
+user {USER_NAME};
 worker_processes auto;
 pid /var/run/nginx.pid;
 daemon off;
@@ -266,6 +268,9 @@ write('/rsyslogd.conf', rsyslogd_conf)
 
 qgis_start_configured = f"""
 #!/bin/bash
+
+groupadd -g {GWS_GID} {USER_NAME}
+useradd -M -u {GWS_UID} -g {GWS_GID} {USER_NAME}
 
 export DISPLAY=:99
 export LC_ALL=C.UTF-8
