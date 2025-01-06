@@ -5,7 +5,12 @@ import sys
 import time
 import re
 
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__) + '/..'))
+# see /compile/make.sh
+
+THIS_DIR = os.path.abspath(os.path.dirname(__file__))
+BUILD_DIR = '/opt/gbd/gbd-qgis-server-build'
+
+sys.path.insert(0, os.path.abspath(THIS_DIR + '/..'))
 
 import cli
 
@@ -51,9 +56,7 @@ class Builder:
     exclude_dependencies = ['qgis', 'libjs', ':any']
 
     def __init__(self, args):
-        self.this_dir = os.path.abspath(os.path.dirname(__file__))
-        # see /compile/make.sh
-        self.build_dir = os.path.abspath(f'{self.this_dir}/../../gbd-qgis-server-build/out')
+        self.build_dir = BUILD_DIR + '/out'
 
         self.skip_cache = '_skip_cache_' + str(int(time.time() * 1000000)) + '_'
 
@@ -81,8 +84,8 @@ class Builder:
         self.debian_packages_url = f'https://debian.qgis.org/debian/dists/{self.ubuntu_name}/main/binary-amd64/Packages'
         self.debian_packages_path = f'{self.build_dir}/Packages'
 
-        self.apt_list = lines(cli.read_file(f'{self.this_dir}/apt.lst'))
-        self.pip_list = lines(cli.read_file(f'{self.this_dir}/pip.lst'))
+        self.apt_list = lines(cli.read_file(f'{THIS_DIR}/apt.lst'))
+        self.pip_list = lines(cli.read_file(f'{THIS_DIR}/pip.lst'))
 
         # resources from the NorBit alkis plugin
         self.alkisplugin_package = 'alkisplugin'
@@ -125,8 +128,8 @@ class Builder:
 
         # our stuff (always skip the cache for these)
 
-        cli.run(f'cp {self.this_dir}/qgis-start.py {self.skip_cache}qgis-start.py')
-        cli.run(f'cp {self.this_dir}/qgis-start.sh {self.skip_cache}qgis-start.sh')
+        cli.run(f'cp {THIS_DIR}/qgis-start.py {self.skip_cache}qgis-start.py')
+        cli.run(f'cp {THIS_DIR}/qgis-start.sh {self.skip_cache}qgis-start.sh')
 
         cli.write_file(f'Dockerfile', self.dockerfile())
 

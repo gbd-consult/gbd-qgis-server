@@ -33,8 +33,8 @@ fi
 
 BUILD_IMAGE=qgis-build-$VERSION-$ARCH
 
-BASE_DIR=/opt/gbd
-BUILD_DIR=$BASE_DIR/gbd-qgis-server-build
+THIS_DIR=$(dirname $(realpath $BASH_SOURCE))
+BUILD_DIR=/opt/gbd/gbd-qgis-server-build
 
 mkdir -p $BUILD_DIR/src
 mkdir -p $BUILD_DIR/out
@@ -42,7 +42,7 @@ mkdir -p $BUILD_DIR/out
 SRC_DIR=$BUILD_DIR/src/$VERSION
 OUT_DIR=$BUILD_DIR/out
 
-set -e
+set -ex
 
 ##
 
@@ -52,7 +52,7 @@ run_container() {
         --rm \
         --mount type=bind,src=$SRC_DIR,dst=/SRC \
         --mount type=bind,src=$OUT_DIR,dst=/OUT \
-        --mount type=bind,src=$BASE_DIR/gbd-qgis-server/compile,dst=/COMPILE \
+        --mount type=bind,src=$THIS_DIR,dst=/COMPILE \
         $BUILD_IMAGE \
         "$@"
 }
@@ -80,7 +80,7 @@ clone)
 
 docker)
 
-    cd $BASE_DIR/gbd-qgis-server/compile
+    cd $THIS_DIR
 
     docker rmi -f $BUILD_IMAGE
 
