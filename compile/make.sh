@@ -18,7 +18,7 @@ if [ -z "$CMD" ] || [ -z "$VERSION" ]; then
             - release = build the release package
             - debug   = build the debug package
         version
-            QGIS version like 3.38.1
+            QGIS version like 3.40.7
         arch
             amd64 (default) or arm64
     "
