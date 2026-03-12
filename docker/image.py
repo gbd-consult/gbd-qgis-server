@@ -1,3 +1,5 @@
+#! /usr/bin/env python3
+
 """Docker builder for QGIS images."""
 
 import os
@@ -44,8 +46,8 @@ Options:
 
 
 class Builder:
-    ubuntu_name = 'jammy'
-    ubuntu_version = '22.04'
+    ubuntu_name = 'noble'
+    ubuntu_version = '24.04'
 
     arch = 'amd64'
     vendor = 'gbdconsult'
@@ -85,7 +87,6 @@ class Builder:
         self.debian_packages_path = f'{self.build_dir}/Packages'
 
         self.apt_list = lines(cli.read_file(f'{THIS_DIR}/apt.lst'))
-        self.pip_list = lines(cli.read_file(f'{THIS_DIR}/pip.lst'))
 
         # resources from the NorBit alkis plugin
         self.alkisplugin_package = 'alkisplugin'
@@ -182,7 +183,6 @@ class Builder:
         __(f'LABEL Description="{self.image_description}" Vendor="{self.vendor}" Version="{self.version}"')
 
         apts = ' \\\n'.join(f"'{s}'" for s in self.apt_list)
-        pips = ' \\\n'.join(f"'{s}'" for s in self.pip_list)
 
         __(f'RUN apt update')
         __(f'RUN apt install -y software-properties-common')
@@ -190,9 +190,6 @@ class Builder:
         __(f'RUN DEBIAN_FRONTEND=noninteractive apt install -y {apts}')
         __(f'RUN apt-get -y clean')
         __(f'RUN apt-get -y purge --auto-remove')
-
-        if pips:
-            __(f'RUN pip3 install --no-cache-dir {pips}')
 
         __(f'COPY {self.qgis_package}/usr /usr')
         __(f'COPY {self.alkisplugin_package} /usr/share/{self.alkisplugin_package}')

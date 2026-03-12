@@ -1,19 +1,33 @@
 """Prepare the qgis server, uwsgi and nginx."""
 
+import grp
 import os
+import pwd
 import urllib.parse
+
+_ = os.system
 
 GWS_UID = int(os.getenv('GWS_UID', '1000'))
 GWS_GID = int(os.getenv('GWS_GID', '1000'))
 
-USER_NAME = 'gws'
+try:
+    GROUP_NAME = grp.getgrgid(GWS_GID).gr_name
+except KeyError:
+    GROUP_NAME = f'group_{GWS_GID}'
+    _(f'groupadd -g {GWS_GID} {GROUP_NAME}')
 
+try:
+    USER_NAME = pwd.getpwuid(GWS_UID).pw_name
+except KeyError:
+    USER_NAME = f'user_{GWS_UID}'
+    _(f'useradd -M -u {GWS_UID} -g {GWS_GID} {USER_NAME}')
+
+HTTP_PROXY = os.getenv('HTTPS_PROXY') or os.getenv('HTTP_PROXY')
+PGSERVICEFILE = os.getenv('PGSERVICEFILE')
 QGIS_DEBUG = os.getenv('QGIS_DEBUG', '0')
 QGIS_WORKERS = os.getenv('QGIS_WORKERS', 1)
 SVG_PATHS = os.getenv('SVG_PATHS', '')
 TIMEOUT = os.getenv('TIMEOUT', '60')
-HTTP_PROXY = os.getenv('HTTPS_PROXY') or os.getenv('HTTP_PROXY')
-PGSERVICEFILE = os.getenv('PGSERVICEFILE')
 
 
 def write(p, s):
@@ -88,8 +102,6 @@ for key, val in vars(QgisEnv).items():
 
 # create qgis runtime dirs
 # ------------------------------------------------------------------------------------
-
-_ = os.system
 
 _('mkdir -p /qgis/profiles/default/QGIS')
 _('mkdir -p /qgis/profiles/profiles/default/QGIS')
@@ -268,9 +280,6 @@ write('/rsyslogd.conf', rsyslogd_conf)
 
 qgis_start_configured = f"""
 #!/bin/bash
-
-groupadd -g {GWS_GID} {USER_NAME}
-useradd -M -u {GWS_UID} -g {GWS_GID} {USER_NAME}
 
 export DISPLAY=:99
 export LC_ALL=C.UTF-8

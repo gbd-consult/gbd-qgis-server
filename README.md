@@ -48,7 +48,7 @@ https://github.com/qgis/QGIS/blob/master/INSTALL.md for details on cmake variabl
 Invoke `/docker/image.py`, passing the QGIS version:
 
 ```
-python3 /opt/gbd/gbd-qgis-server/docker/image.py 3.44.8
+/opt/gbd/gbd-qgis-server/docker/image.py 3.44.8
 ```
 
 By default, this creates an image `gbdconsult/gbd-qgis-server-{arch}:{version}`, e.g.
