@@ -22,19 +22,19 @@ command, a QGIS version (see https://github.com/qgis/QGIS/releases) and the arch
 First, clone the QGIS version you want to build:
 
 ```
-/opt/gbd/gbd-qgis-server/compile/make.sh clone 3.40.7
+/opt/gbd/gbd-qgis-server/compile/make.sh clone 3.44.8
 ```
 
 Create a Docker image with QGIS dependencies:
 
 ```
-/opt/gbd/gbd-qgis-server/compile/make.sh docker 3.40.7
+/opt/gbd/gbd-qgis-server/compile/make.sh docker 3.44.8
 ```
 
 Then, invoke the QGIS builder with `make.sh release` or `make.sh debug`:
 
 ```
-/opt/gbd/gbd-qgis-server/compile/make.sh release 3.40.7
+/opt/gbd/gbd-qgis-server/compile/make.sh release 3.44.8
 ```
 
 This creates the QGIS binary package in the output directory `/opt/gbd/gbd-qgis-server-build/out`. From there it will be
@@ -48,15 +48,15 @@ https://github.com/qgis/QGIS/blob/master/INSTALL.md for details on cmake variabl
 Invoke `/docker/image.py`, passing the QGIS version:
 
 ```
-python3 /opt/gbd/gbd-qgis-server/docker/image.py 3.40.7
+python3 /opt/gbd/gbd-qgis-server/docker/image.py 3.44.8
 ```
 
 By default, this creates an image `gbdconsult/gbd-qgis-server-{arch}:{version}`, e.g.
 
 ```
-gbdconsult/gbd-qgis-server-amd64:3.40.7
+gbdconsult/gbd-qgis-server-amd64:3.44.8
 or
-gbdconsult/gbd-qgis-server-amd64-debug:3.40.7
+gbdconsult/gbd-qgis-server-amd64-debug:3.44.8
 ```
 
 To fine-tune the build, call `image.py -h` to see available options.
@@ -80,7 +80,7 @@ The image can be configured with these environment variables:
 | TIMEOUT       | Worker communication timeout, seconds            |
 
 Additionally, these QGIS enviroment variables are supported (
-see https://docs.qgis.org/3.34/en/docs/server_manual/config.html#environment-variables for explanations):
+see https://docs.qgis.org/3.44/en/docs/server_manual/config.html#environment-variables for explanations):
 
 - `QGIS_SERVER_ALLOWED_EXTRA_SQL_TOKENS`
 - `QGIS_SERVER_CACHE_SIZE`

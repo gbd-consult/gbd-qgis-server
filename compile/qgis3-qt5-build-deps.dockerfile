@@ -1,14 +1,17 @@
-# Based on https://github.com/qgis/QGIS/blob/master/.docker/qgis3-qt5-build-deps.dockerfile
-# Removed node, oracle and hana
+# Based on https://github.com/qgis/QGIS/blob/release-3_44/.docker/qgis3-qt5-build-deps.dockerfile
+# Removed node, oracle, mssql and hana
 
-ARG DISTRO_VERSION=22.04
+ARG DISTRO_VERSION=24.04
+ARG PDAL_VERSION=2.8.4
 
 # Oracle Docker image is too large, so we add as less dependencies as possible
 # so there is enough space on GitHub runner
-FROM      ubuntu:${DISTRO_VERSION} as binary-for-oracle
-MAINTAINER Denis Rouzaud <denis@opengis.ch>
+FROM      ubuntu:${DISTRO_VERSION} AS binary-for-oracle
+LABEL org.opencontainers.image.authors="Denis Rouzaud <denis@opengis.ch>"
 
 LABEL Description="Docker container with QGIS dependencies" Vendor="QGIS.org" Version="1.0"
+
+ARG PDAL_VERSION
 
 # && echo "deb http://ppa.launchpad.net/ubuntugis/ubuntugis-unstable/ubuntu xenial main" >> /etc/apt/sources.list \
 # && echo "deb-src http://ppa.launchpad.net/ubuntugis/ubuntugis-unstable/ubuntu xenial main" >> /etc/apt/sources.list \
@@ -29,16 +32,16 @@ RUN  apt-get update \
     gnupg \
     gpsbabel \
     graphviz \
-    libaio1 \
-    libdraco4 \
+    'libaio1|libaio1t64' \
+    'libdraco4|libdraco8' \
     libexiv2-27 \
-    libfcgi0ldbl \
+    'libfcgi0ldbl|libfcgi0t64' \
     libgsl27 \
-    'libprotobuf-lite17|libprotobuf-lite23' \
+    'libprotobuf-lite17|libprotobuf-lite23|libprotobuf-lite32t64' \
     libqca-qt5-2-plugins \
     libqt53dextras5 \
     libqt53drender5 \
-    libqt5concurrent5 \
+    'libqt5concurrent5|libqt5concurrent5t64' \
     libqt5keychain1 \
     libqt5positioning5 \
     libqt5multimedia5 \
@@ -50,20 +53,20 @@ RUN  apt-get update \
     libqt5serialport5 \
     libqt5sql5-odbc \
     libqt5sql5-sqlite \
-    libqt5xml5 \
+    'libqt5xml5|libqt5xml5t64' \
     libqt5webkit5 \
     libqwt-qt5-6 \
     libspatialindex6 \
     libsqlite3-mod-spatialite \
-    'libzip4|libzip5' \
+    'libzip4|libzip5|libzip4t64' \
     lighttpd \
     locales \
-    pdal \
     poppler-utils \
     python3-future \
     python3-gdal \
     python3-mock \
     python3-nose2 \
+    python3-numpy \
     python3-owslib \
     python3-pip \
     python3-psycopg2 \
@@ -95,7 +98,7 @@ RUN  apt-get update \
     xfonts-scalable \
     xvfb \
     ocl-icd-libopencl1 \
-  && pip3 install \
+  && pip3 install --break-system-packages \
     numpy \
     nose2 \
     pyyaml \
@@ -103,7 +106,7 @@ RUN  apt-get update \
     future \
     termcolor \
     oauthlib \
-    pyopenssl \
+    "pyopenssl<25.2.0" \
     pep8 \
     pexpect \
     capturer \
@@ -111,28 +114,31 @@ RUN  apt-get update \
     requests \
     six \
     hdbcli \
+    shapely  \
   && apt-get clean
 
 # Node.js and Yarn for server landingpage webapp
 ### RUN mkdir -p /etc/apt/keyrings
 ### RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-### RUN echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+### RUN echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
 ### RUN apt-get update
 ### RUN apt-get install -y nodejs
 ### RUN corepack enable
 
 # Oracle : client side
-### RUN curl https://download.oracle.com/otn_software/linux/instantclient/199000/instantclient-basic-linux.x64-19.9.0.0.0dbru.zip > instantclient-basic-linux.x64-19.9.0.0.0dbru.zip
-### RUN curl https://download.oracle.com/otn_software/linux/instantclient/199000/instantclient-sdk-linux.x64-19.9.0.0.0dbru.zip > instantclient-sdk-linux.x64-19.9.0.0.0dbru.zip
-### RUN curl https://download.oracle.com/otn_software/linux/instantclient/199000/instantclient-sqlplus-linux.x64-19.9.0.0.0dbru.zip > instantclient-sqlplus-linux.x64-19.9.0.0.0dbru.zip
-###
-### RUN unzip instantclient-basic-linux.x64-19.9.0.0.0dbru.zip
-### RUN unzip instantclient-sdk-linux.x64-19.9.0.0.0dbru.zip
-### RUN unzip instantclient-sqlplus-linux.x64-19.9.0.0.0dbru.zip
-###
-### ENV PATH="/instantclient_19_9:${PATH}"
-### ENV LD_LIBRARY_PATH="/instantclient_19_9:${LD_LIBRARY_PATH}"
-###
+### RUN curl https://download.oracle.com/otn_software/linux/instantclient/2116000/instantclient-basic-linux.x64-21.16.0.0.0dbru.zip > instantclient-basic-linux.x64-21.16.0.0.0dbru.zip
+### RUN curl https://download.oracle.com/otn_software/linux/instantclient/2116000/instantclient-sdk-linux.x64-21.16.0.0.0dbru.zip > instantclient-sdk-linux.x64-21.16.0.0.0dbru.zip
+### RUN curl https://download.oracle.com/otn_software/linux/instantclient/2116000/instantclient-sqlplus-linux.x64-21.16.0.0.0dbru.zip > instantclient-sqlplus-linux.x64-21.16.0.0.0dbru.zip
+### 
+### RUN unzip -n instantclient-basic-linux.x64-21.16.0.0.0dbru.zip
+### RUN unzip -n instantclient-sdk-linux.x64-21.16.0.0.0dbru.zip
+### RUN unzip -n instantclient-sqlplus-linux.x64-21.16.0.0.0dbru.zip
+### 
+### ENV PATH="/instantclient_21_16:${PATH}"
+### ENV LD_LIBRARY_PATH="/instantclient_21_16"
+### # workaround noble libaio SONAME issue -- see https://bugs.launchpad.net/ubuntu/+source/libaio/+bug/2067501
+### RUN if [ -e /usr/lib/x86_64-linux-gnu/libaio.so.1t64 ] ; then ln -sf /usr/lib/x86_64-linux-gnu/libaio.so.1t64 /usr/lib/x86_64-linux-gnu/libaio.so.1 ; fi
+### 
 ### # Avoid sqlcmd termination due to locale -- see https://github.com/Microsoft/mssql-docker/issues/163
 ### RUN echo "nb_NO.UTF-8 UTF-8" > /etc/locale.gen
 ### RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
@@ -140,7 +146,26 @@ RUN  apt-get update \
 
 RUN echo "alias python=python3" >> ~/.bash_aliases
 
-FROM binary-for-oracle as binary-only
+# PDAL is not available in ubuntu 24.04
+# Install it from source
+# PDAL dependencies
+RUN  apt-get update \
+     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+     ninja-build \
+     libgdal-dev \
+     libproj-dev
+# download PDAL and compile it
+RUN curl -L https://github.com/PDAL/PDAL/releases/download/${PDAL_VERSION}/PDAL-${PDAL_VERSION}-src.tar.gz --output PDAL-${PDAL_VERSION}-src.tar.gz \
+    && mkdir pdal \
+    && tar zxf PDAL-${PDAL_VERSION}-src.tar.gz -C pdal --strip-components=1 \
+    && rm -f PDAL-${PDAL_VERSION}-src.tar.gz \
+    && mkdir -p pdal/build \
+    && cd pdal/build \
+    && cmake -GNinja -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_TESTS=OFF .. \
+    && ninja \
+    && ninja install
+
+FROM binary-for-oracle AS binary-only
 
 RUN  apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -148,7 +173,7 @@ RUN  apt-get update \
     iproute2 \
     postgresql-client \
     spawn-fcgi \
-  && pip3 install \
+  && pip3 install --break-system-packages \
     psycopg2 \
   && apt-get clean
 
@@ -163,10 +188,12 @@ RUN  apt-get update \
 ### ENV PATH="/usr/sap/hdbclient:${PATH}"
 
 # MSSQL: client side
-# RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
-# RUN curl https://packages.microsoft.com/config/ubuntu/19.04/prod.list | tee /etc/apt/sources.list.d/msprod.list
-# RUN apt-get update
-# RUN ACCEPT_EULA=Y apt-get install -y --allow-unauthenticated msodbcsql17 mssql-tools
+### RUN curl -sSL -O https://packages.microsoft.com/config/ubuntu/$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)/packages-microsoft-prod.deb
+### RUN dpkg -i packages-microsoft-prod.deb
+### RUN rm packages-microsoft-prod.deb
+### RUN apt-get update
+### RUN ACCEPT_EULA=Y apt-get install -y --allow-unauthenticated msodbcsql18 mssql-tools18
+### ENV PATH="/opt/mssql-tools18/bin:${PATH}"
 
 FROM binary-only
 
@@ -182,12 +209,9 @@ RUN  apt-get update \
     libexiv2-dev \
     libexpat1-dev \
     libfcgi-dev \
-    libgdal-dev \
     libgeos-dev \
     libgsl-dev \
-    libpdal-dev \
     libpq-dev \
-    libproj-dev \
     libprotobuf-dev \
     libqca-qt5-2-dev \
     libqt5opengl5-dev \
@@ -202,7 +226,6 @@ RUN  apt-get update \
     libsqlite3-mod-spatialite \
     libzip-dev \
     libzstd-dev \
-    ninja-build \
     protobuf-compiler \
     pyqt5-dev \
     pyqt5-dev-tools \
