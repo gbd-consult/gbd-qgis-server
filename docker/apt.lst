@@ -1,7 +1,6 @@
 # extra dependencies
 
 nginx
-uwsgi
 rsyslog
 xvfb
 

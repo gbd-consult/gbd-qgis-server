@@ -43,7 +43,7 @@ def generate_script(
 
     d = {}
 
-    for ln in read_file('/COMPILE/cmake-vars.txt').split('\n'):
+    for ln in read_file('/BASE_DIR/compile/cmake-vars.txt').split('\n'):
         ln = ln.strip()
         if not ln or ln.startswith('#'):
             continue

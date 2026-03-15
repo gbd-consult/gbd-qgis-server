@@ -16,25 +16,29 @@ The following directory structure is assumed:
 
 Prerequisites: git, Docker (19+).
 
-All compilation is controlled by the script `compile/make.sh`. The script must be passed a
+All compilation is controlled by the script `make.sh`. The script must be passed a
 command, a QGIS version (see https://github.com/qgis/QGIS/releases) and the architecture: `amd64` (default) or `arm64`.
 
 First, clone the QGIS version you want to build:
 
 ```
-/opt/gbd/gbd-qgis-server/compile/make.sh clone 3.44.8
+/opt/gbd/gbd-qgis-server/make.sh clone 3.44.8
 ```
 
 Create a Docker image with QGIS dependencies:
 
 ```
-/opt/gbd/gbd-qgis-server/compile/make.sh docker 3.44.8
+/opt/gbd/gbd-qgis-server/make.sh docker 3.44.8
 ```
 
-Then, invoke the QGIS builder with `make.sh release` or `make.sh debug`:
+Then, invoke the QGIS builder with `make.sh compile-release` or `make.sh compile-debug`:
 
 ```
-/opt/gbd/gbd-qgis-server/compile/make.sh release 3.44.8
+/opt/gbd/gbd-qgis-server/make.sh compile-release 3.44.8
+
+or
+
+/opt/gbd/gbd-qgis-server/make.sh compile-debug 3.44.8
 ```
 
 This creates the QGIS binary package in the output directory `/opt/gbd/gbd-qgis-server-build/out`. From there it will be
@@ -45,21 +49,27 @@ https://github.com/qgis/QGIS/blob/master/INSTALL.md for details on cmake variabl
 
 ## Building the Docker Image
 
-Invoke `/docker/image.py`, passing the QGIS version:
+Invoke `/make.sh image-release` or `/make.sh image-debug`:
 
 ```
-/opt/gbd/gbd-qgis-server/docker/image.py 3.44.8
+/opt/gbd/gbd-qgis-server/make.sh image-release 3.44.8
+
+or
+
+/opt/gbd/gbd-qgis-server/make.sh image-debug 3.44.8
 ```
 
-By default, this creates an image `gbdconsult/gbd-qgis-server-{arch}:{version}`, e.g.
+This would create an image `gbdconsult/gbd-qgis-server-{arch}:{version}`, e.g.
 
 ```
 gbdconsult/gbd-qgis-server-amd64:3.44.8
+
 or
+
 gbdconsult/gbd-qgis-server-amd64-debug:3.44.8
 ```
 
-To fine-tune the build, call `image.py -h` to see available options.
+To fine-tune the build, call `make.sh` without arguments to see available options.
 
 ## Running the image
 
@@ -86,10 +96,10 @@ see https://docs.qgis.org/3.44/en/docs/server_manual/config.html#environment-var
 - `QGIS_SERVER_CACHE_SIZE`
 - `QGIS_SERVER_FORCE_READONLY_LAYERS`
 - `QGIS_SERVER_IGNORE_BAD_LAYERS`
-- `QGIS_SERVER_LOG_LEVEL`
-- `QGIS_SERVER_LOG_PROFILE`
 - `QGIS_SERVER_OVERRIDE_SYSTEM_LOCALE`
 - `QGIS_SERVER_PROJECT_CACHE_CHECK_INTERVAL`
 - `QGIS_SERVER_PROJECT_CACHE_STRATEGY`
 - `QGIS_SERVER_SHOW_GROUP_SEPARATOR`
 - `QGIS_SERVER_TRUST_LAYER_METADATA`
+
+In debug images, you can also set `QGIS_DEBUG` to a value between 0 and 5 to control the debug verbosity.

@@ -1,5 +1,5 @@
 # Based on https://github.com/qgis/QGIS/blob/release-3_44/.docker/qgis3-qt5-build-deps.dockerfile
-# Removed node, oracle, mssql and hana
+# Removed node, oracle, mssql, hana, pdal
 
 ARG DISTRO_VERSION=24.04
 ARG PDAL_VERSION=2.8.4
@@ -154,16 +154,16 @@ RUN  apt-get update \
      ninja-build \
      libgdal-dev \
      libproj-dev
-# download PDAL and compile it
-RUN curl -L https://github.com/PDAL/PDAL/releases/download/${PDAL_VERSION}/PDAL-${PDAL_VERSION}-src.tar.gz --output PDAL-${PDAL_VERSION}-src.tar.gz \
-    && mkdir pdal \
-    && tar zxf PDAL-${PDAL_VERSION}-src.tar.gz -C pdal --strip-components=1 \
-    && rm -f PDAL-${PDAL_VERSION}-src.tar.gz \
-    && mkdir -p pdal/build \
-    && cd pdal/build \
-    && cmake -GNinja -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_TESTS=OFF .. \
-    && ninja \
-    && ninja install
+### # download PDAL and compile it
+### RUN curl -L https://github.com/PDAL/PDAL/releases/download/${PDAL_VERSION}/PDAL-${PDAL_VERSION}-src.tar.gz --output PDAL-${PDAL_VERSION}-src.tar.gz \
+###     && mkdir pdal \
+###     && tar zxf PDAL-${PDAL_VERSION}-src.tar.gz -C pdal --strip-components=1 \
+###     && rm -f PDAL-${PDAL_VERSION}-src.tar.gz \
+###     && mkdir -p pdal/build \
+###     && cd pdal/build \
+###     && cmake -GNinja -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_TESTS=OFF .. \
+###     && ninja \
+###     && ninja install
 
 FROM binary-for-oracle AS binary-only
 

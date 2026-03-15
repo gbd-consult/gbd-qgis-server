@@ -22,22 +22,24 @@ except KeyError:
     USER_NAME = f'user_{GWS_UID}'
     _(f'useradd -M -u {GWS_UID} -g {GWS_GID} {USER_NAME}')
 
-HTTP_PROXY = os.getenv('HTTPS_PROXY') or os.getenv('HTTP_PROXY')
-PGSERVICEFILE = os.getenv('PGSERVICEFILE')
+HTTP_PROXY = os.getenv('HTTPS_PROXY') or os.getenv('HTTP_PROXY') or ''
+PGSERVICEFILE = os.getenv('PGSERVICEFILE', '')
 QGIS_DEBUG = os.getenv('QGIS_DEBUG', '0')
-QGIS_WORKERS = os.getenv('QGIS_WORKERS', 1)
+QGIS_WORKERS = os.getenv('QGIS_WORKERS', '1')
 SVG_PATHS = os.getenv('SVG_PATHS', '')
 TIMEOUT = os.getenv('TIMEOUT', '60')
 
 
 def write(p, s):
     with open(p, 'wt') as fp:
+        s = '\n'.join(line.strip() for line in s.strip().splitlines())
         fp.write(s.strip() + '\n')
     _(f'chmod 666 {p}')
 
 
 # prepare the qgis environment
 # ------------------------------------------------------------------------------------
+
 
 def _from_env(default):
     return lambda k: os.getenv(k, default)
@@ -71,8 +73,8 @@ class QgisEnv:
     QGIS_SERVER_LANDING_PAGE_PROJECTS_DIRECTORIES = ''
     QGIS_SERVER_LANDING_PAGE_PROJECTS_PG_CONNECTIONS = ''
     QGIS_SERVER_LOG_FILE = ''
-    QGIS_SERVER_LOG_LEVEL = _from_env('2')
-    QGIS_SERVER_LOG_PROFILE = _from_env('0')
+    QGIS_SERVER_LOG_LEVEL = 2
+    QGIS_SERVER_LOG_PROFILE = 0
     QGIS_SERVER_LOG_STDERR = 0
     QGIS_SERVER_MAX_THREADS = 0
     QGIS_SERVER_OVERRIDE_SYSTEM_LOCALE = _from_env('')
@@ -100,6 +102,24 @@ for key, val in vars(QgisEnv).items():
     if val:
         qgis_env += f'export {key}={val}\n'
 
+
+# prepare extra fastcgi params for nginx
+# ------------------------------------------------------------------------------------
+
+# these vars must be passed as fastcgi_param because uwsgi worker-exec'd
+# FastCGI processes don't reliably inherit the shell environment
+
+EXTRA_FCGI_PARAMS = {
+    'PGSERVICEFILE': PGSERVICEFILE,
+}
+
+extra_fcgi_params = '\n'.join(
+    f'fastcgi_param {key} {val};'
+    for key, val in EXTRA_FCGI_PARAMS.items()
+    if val  # fmt:skip
+)
+
+
 # create qgis runtime dirs
 # ------------------------------------------------------------------------------------
 
@@ -110,9 +130,9 @@ _('mkdir -p /qgis/cache/network')
 _('mkdir -p /qgis/cache/server')
 _(f'chown -R {GWS_UID}:{GWS_GID} /qgis')
 
-_('mkdir -p /var/run')
-_('chmod 777 /var/run')
-_(f'chown -R {GWS_UID}:{GWS_GID} /var/run')
+_('mkdir -p /vrun')
+_('chmod 777 /vrun')
+_(f'chown -R {GWS_UID}:{GWS_GID} /vrun')
 
 # qgis config
 # ------------------------------------------------------------------------------------
@@ -121,20 +141,7 @@ svg_paths = '/usr/share/qgis/svg,/usr/share/alkisplugin/svg'
 if SVG_PATHS:
     svg_paths += ',' + SVG_PATHS
 
-proxy = ''
-if HTTP_PROXY:
-    p = urllib.parse.urlsplit(HTTP_PROXY)
-    proxy = f'''
-[proxy]
-proxyEnabled=true
-proxyType=HttpProxy
-proxyHost={p.hostname}
-proxyPort={p.port}
-proxyUser={p.username}
-proxyPassword={p.password}
-    '''
-
-qgis_ini = fr"""
+qgis_ini = rf"""
 [cache]
 directory=/qgis/cache/network
 size=@Variant(\0\0\0\x81\0\0\0\0\0@\0\0)
@@ -144,9 +151,20 @@ symbolsListGroupsIndex=0
 
 [svg]
 searchPathsForSVG={svg_paths}
-
-{proxy}
 """
+
+if HTTP_PROXY:
+    p = urllib.parse.urlsplit(HTTP_PROXY)
+    qgis_ini += f"""
+    [proxy]
+    proxyEnabled=true
+    proxyType=HttpProxy
+    proxyHost={p.hostname}
+    proxyPort={p.port}
+    proxyUser={p.username}
+    proxyPassword={p.password}
+    """
+
 
 write('/qgis/profiles/default/QGIS/QGIS3.ini', qgis_ini)
 _(f'chown -R {GWS_UID}:{GWS_GID} /qgis')
@@ -154,24 +172,38 @@ _(f'chown -R {GWS_UID}:{GWS_GID} /qgis')
 # uwsgi config
 # ------------------------------------------------------------------------------------
 
-uwsgi_ini = fr"""
+uwsgi_ini = rf"""
 [uwsgi]
 uid = {GWS_UID}
 gid = {GWS_GID}
+
 chmod-socket = 666
-fastcgi-socket = /var/run/uwsgi.sock
-daemonize = true
 die-on-term = true
-logger = syslog:QGIS,local6
+fastcgi-socket = /vrun/uwsgi.sock
+harakiri = {TIMEOUT}
 master = true
-pidfile = /var/run/uwsgi.pid
+pidfile = /vrun/uwsgi.pid
 processes = {QGIS_WORKERS}
 reload-mercy = 5
 threads = 0
 vacuum = true
 worker-exec = /usr/bin/qgis_mapserv.fcgi
 worker-reload-mercy = 5
-harakiri = {TIMEOUT}
+
+buffer-size = 65535
+listen = 256
+max-requests = 1000
+thunder-lock = true
+
+daemonize = /vrun/uwsgi-start.log
+logger = syslog:QGIS,local6
+log-master = true
+
+# force line-buffered stderr for workers to prevent split log lines
+# glibc >= 2.39 (Ubuntu 24.04+) splits unbuffered fprintf into separate write() calls
+# which breaks SOCK_SEQPACKET log datagrams in uwsgi's log pipe
+env = LD_PRELOAD=/usr/libexec/coreutils/libstdbuf.so
+env = _STDBUF_E=L
 """
 
 write('/uwsgi.ini', uwsgi_ini)
@@ -179,22 +211,10 @@ write('/uwsgi.ini', uwsgi_ini)
 # nginx config
 # ------------------------------------------------------------------------------------
 
-# for some reason, qgis only sees certain vars this way
-
-extra_fcgi_params = {
-    'PGSERVICEFILE': PGSERVICEFILE,
-}
-
-extra_fcgi_params = '\n'.join(
-    f'fastcgi_param {key} {val};'
-    for key, val in extra_fcgi_params.items()
-    if val
-)
-
-nginx_conf = fr"""
+nginx_conf = rf"""
 user {USER_NAME};
 worker_processes auto;
-pid /var/run/nginx.pid;
+pid /vrun/nginx.pid;
 daemon off;
 error_log syslog:server=unix:/dev/log,nohostname,tag=NGINX warn;
 
@@ -204,13 +224,23 @@ events {{
 
 http {{
     access_log syslog:server=unix:/dev/log,nohostname,tag=NGINX;
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    client_max_body_size 16m;
     server {{
         listen 80;
         location / {{
             gzip off;
-            fastcgi_pass unix:/var/run/uwsgi.sock;
-            fastcgi_read_timeout {TIMEOUT}s;
             add_header 'Access-Control-Allow-Origin' *;
+            
+            fastcgi_pass unix:/vrun/uwsgi.sock;
+            fastcgi_read_timeout {TIMEOUT}s;
+            fastcgi_buffering on;
+            fastcgi_buffer_size 256k;
+            fastcgi_buffers 16 256k;
+            fastcgi_busy_buffers_size 512k;
+            
             include /etc/nginx/fastcgi_params;
             {extra_fcgi_params}
             
@@ -237,18 +267,18 @@ write('/nginx.conf', nginx_conf)
 
 # silence some warnings unless debugging
 
-silence = '''
+silence = """
 # 'QFont::setPointSize: Point size must be greater than 0'
 :msg, contains, "QFont::setPointSizeF" stop
 
 # 'Using QCharRef with an index pointing outside the valid range of a QString'
 :msg, contains, "Using QCharRef" stop
-'''
+"""
 
 if QGIS_DEBUG != '0':
     silence = ''
 
-rsyslogd_conf = fr"""
+rsyslogd_conf = rf"""
 module(
     load="imuxsock"
     SysSock.UsePIDFromSystem="on"
@@ -298,7 +328,7 @@ until start-stop-daemon --status --exec $XVFB; do
     sleep 0.5
 done
 
-rsyslogd -i /var/run/rsyslogd.pid -f /rsyslogd.conf
+rsyslogd -i /vrun/rsyslogd.pid -f /rsyslogd.conf
 uwsgi /uwsgi.ini
 exec nginx -c /nginx.conf
 """
