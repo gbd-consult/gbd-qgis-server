@@ -1,5 +1,6 @@
 # Based on https://github.com/qgis/QGIS/blob/release-3_44/.docker/qgis3-qt5-build-deps.dockerfile
 # Removed node, oracle, mssql, hana, pdal
+# Added lld
 
 ARG DISTRO_VERSION=24.04
 ARG PDAL_VERSION=2.8.4
@@ -249,3 +250,9 @@ RUN  apt-get update \
 ENV PATH="/usr/local/bin:${PATH}"
 
 # environment variables shall be located in .docker/docker-variables.env
+
+# added: lld linker
+RUN  apt-get update \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    lld \
+  && apt-get clean

@@ -1,7 +1,7 @@
 # extra dependencies
 
-nginx
-rsyslog
+apache2
+libapache2-mod-fcgid
 xvfb
 
 python3
@@ -18,3 +18,10 @@ python3-pyqt5.qtsvg
 
 libqt5sql5-mysql
 libqt5sql5-odbc
+libqt5sql5-sqlite
+
+# loaded at runtime, not visible to dpkg-shlibdeps
+
+libqca-qt5-2-plugins
+qt5-image-formats-plugins
+qt5-image-formats-plugin-pdf

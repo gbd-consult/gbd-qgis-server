@@ -4,40 +4,41 @@ CMD=$1
 shift
 VERSION=$1
 shift
-ARCH=$1
-shift
+
+ARCH=amd64
+MODE=release
+
+for OPT in "$@"; do
+    case $OPT in
+    -arm) ARCH=arm64 ;;
+    -debug) MODE=debug ;;
+    -latest|-keep) ;;
+    *) echo "unknown option: $OPT"; exit 1 ;;
+    esac
+done
 
 if [ -z "$CMD" ] || [ -z "$VERSION" ]; then
     echo "
     Usage:
 
-        make.sh clone   <version> [arch]  = clone the QGIS repo
-        make.sh docker  <version> [arch]  = build the build image
-        make.sh bash    <version> [arch]  = shell to a build container
-        make.sh vars    <version> [arch]  = print cmake vars
-        
-        make.sh compile-release <version> [arch]  = build the release package
-        make.sh compile-debug   <version> [arch]  = build the debug package
-        
-        make.sh image-release   <version> [arch] [options]  = build the release docker image
-        make.sh image-debug     <version> [arch] [options]  = build the debug docker image
+        make.sh clone   <version>                            = clone the QGIS repo
+        make.sh docker  <version> [-arm]                     = build the build image
+        make.sh bash    <version> [-arm]                     = shell to a build container
+        make.sh vars    <version> [-arm]                     = print cmake vars
+        make.sh compile <version> [-arm] [-debug]            = build the QGIS package
+        make.sh image   <version> [-arm] [-debug] [-latest]  = build the docker image
+        make.sh test    <version> [-arm] [-debug] [-keep]    = test the docker image
 
     version
-        QGIS version like 3.40.7
+        QGIS version like 3.44.15
 
-    arch
-        amd64 (default) or arm64
-
-    image options:
-        -latest     = tag the image with the major version (e.g. "3.40")
-        -no-cache   = disable build cache
-        -prep       = prepare the build, but do not run it
+    options
+        -arm        = build for arm64 (default amd64)
+        -debug      = debug build (default release)
+        -latest     = tag the image with the major version (e.g. "3.44")
+        -keep       = keep the test container running
     "
     exit
-fi
-
-if [ -z "$ARCH" ] ; then
-    ARCH=amd64
 fi
 
 ##
@@ -53,13 +54,17 @@ mkdir -p $BUILD_DIR/out
 SRC_DIR=$BUILD_DIR/src/$VERSION
 OUT_DIR=$BUILD_DIR/out
 
-set -ex
+set -e
 
 ##
 
 run_container() {
+    TTY=-i
+    if [ -t 0 ] && [ -t 1 ]; then
+        TTY=-it
+    fi
     docker run \
-        -it \
+        $TTY \
         --rm \
         --mount type=bind,src=$SRC_DIR,dst=/SRC \
         --mount type=bind,src=$OUT_DIR,dst=/OUT \
@@ -73,9 +78,7 @@ prepare_build_in_container() {
     # copy sources to the container to speed up things...
     rm -fr /QGIS && cp -r /SRC/QGIS / && mkdir /QGIS/_BUILD
     git config --global --add safe.directory /QGIS
-    python3 /BASE_DIR/compile/compile-helper.py generate_build_script $VERSION $ARCH $1 > /QGIS/_BUILD/gbd_build_script
 }
-
 
 ##
 
@@ -108,38 +111,80 @@ bash)
     ;;
 
 vars)
-    run_container /BASE_DIR/make.sh vars-in-container $VERSION $ARCH
+    run_container /BASE_DIR/make.sh vars-in-container $VERSION "$@"
     ;;
 
-compile-release)
-    run_container /BASE_DIR/make.sh compile-release-in-container $VERSION $ARCH
-    ;;
-
-compile-debug)
-    run_container /BASE_DIR/make.sh compile-debug-in-container $VERSION $ARCH
+compile)
+    run_container /BASE_DIR/make.sh compile-in-container $VERSION "$@"
     ;;
 
 vars-in-container)
-    prepare_build_in_container release
-    cd /QGIS/_BUILD && cmake -LH .. 2>/dev/null > /tmp/vars || true
-    python3 /BASE_DIR/compile/compile-helper.py print_vars /tmp/vars
+    prepare_build_in_container
+    cd /QGIS/_BUILD
+    CMAKE_OPTS="-DWITH_PDAL=NO -DWITH_SERVER=YES"
+    RC=0
+    cmake $CMAKE_OPTS -LH .. > /tmp/vars 2> /tmp/vars.err || RC=$?
+    if [ $RC -ne 0 ]; then
+        echo "ERROR"
+        cat /tmp/vars /tmp/vars.err
+        exit 1
+    fi
+    python3 /BASE_DIR/compile/compile-helper.py print_vars /tmp/vars "$CMAKE_OPTS" > /tmp/cmake-vars.json
+    cp /tmp/cmake-vars.json /BASE_DIR/compile/cmake-vars.json
     ;;
 
-compile-release-in-container)
-    prepare_build_in_container release
-    exec bash /QGIS/_BUILD/gbd_build_script
+compile-in-container)
+    if [ "$MODE" = release ]; then
+        BUILD_TYPE=Release
+        INSTALL_TARGET=install/strip
+    else
+        BUILD_TYPE=Debug
+        INSTALL_TARGET=install
+    fi
+
+    # copy sources, write cmake cache with our overrides from cmake-vars.json
+    prepare_build_in_container
+    python3 /BASE_DIR/compile/compile-helper.py cmake_cache > /QGIS/_BUILD/gbd_cache.cmake
+
+    # configure and compile, link with lld, faster than the default GNU ld
+    cd /QGIS/_BUILD
+    cmake -GNinja \
+        -C gbd_cache.cmake \
+        -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld \
+        -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld \
+        -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld \
+        ..
+    ninja
+
+    # install into the package dir
+    PACKAGE_DIR=/OUT/compiled-qgis-server-$VERSION-$ARCH-$MODE
+    rm -fr $PACKAGE_DIR
+    DESTDIR=$PACKAGE_DIR ninja $INSTALL_TARGET
+
+    # clean up the package
+    cp /QGIS/COPYING $PACKAGE_DIR/usr/lib
+    find $PACKAGE_DIR -type l -delete
+    find $PACKAGE_DIR -depth -name __pycache__ -exec rm -fr {} +
+    rm -fr $PACKAGE_DIR/usr/include $PACKAGE_DIR/usr/man
+
+    # list apt packages required by the compiled binaries
+    python3 /BASE_DIR/compile/compile-helper.py shlibdeps $PACKAGE_DIR > $PACKAGE_DIR/shlibdeps.lst
+
+    echo "CREATED $PACKAGE_DIR"
     ;;
 
-compile-debug-in-container)
-    prepare_build_in_container debug
-    exec bash /QGIS/_BUILD/gbd_build_script
+image)
+    exec python3 $BASE_DIR/docker/image-helper.py $VERSION "$@"
     ;;
 
-image-release)
-    exec python3 $BASE_DIR/docker/image-helper.py release $VERSION $ARCH $@
+test)
+    exec python3 $BASE_DIR/test/test-helper.py $VERSION "$@"
     ;;
 
-image-debug)
-    exec python3 $BASE_DIR/docker/image-helper.py debug $VERSION $ARCH $@
+*)
+    echo "unknown command: $CMD"
+    exit 1
     ;;
 esac

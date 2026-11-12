@@ -1,347 +1,336 @@
-"""Prepare the qgis server, uwsgi and nginx."""
+"""Prepare the qgis server and apache with mod_fcgid, then exec apache.
+
+If started as root, creates the GWS_UID/GWS_GID user (default 1000/1000), empties /qgis and /vrun and re-runs itself as that user.
+Otherwise (e.g. docker run -u), runs as the current user.
+All container env vars are passed to qgis.
+FCGID_<NAME> env vars set mod_fcgid directives, e.g. FCGID_BUSY_SCAN_INTERVAL=5 -> FcgidBusyScanInterval 5.
+"""
 
 import grp
 import os
 import pwd
+import shutil
+import subprocess
+import sys
+import time
 import urllib.parse
 
-_ = os.system
-
-GWS_UID = int(os.getenv('GWS_UID', '1000'))
-GWS_GID = int(os.getenv('GWS_GID', '1000'))
-
-try:
-    GROUP_NAME = grp.getgrgid(GWS_GID).gr_name
-except KeyError:
-    GROUP_NAME = f'group_{GWS_GID}'
-    _(f'groupadd -g {GWS_GID} {GROUP_NAME}')
-
-try:
-    USER_NAME = pwd.getpwuid(GWS_UID).pw_name
-except KeyError:
-    USER_NAME = f'user_{GWS_UID}'
-    _(f'useradd -M -u {GWS_UID} -g {GWS_GID} {USER_NAME}')
-
 HTTP_PROXY = os.getenv('HTTPS_PROXY') or os.getenv('HTTP_PROXY') or ''
-PGSERVICEFILE = os.getenv('PGSERVICEFILE', '')
-QGIS_DEBUG = os.getenv('QGIS_DEBUG', '0')
 QGIS_WORKERS = os.getenv('QGIS_WORKERS', '1')
 SVG_PATHS = os.getenv('SVG_PATHS', '')
+NO_PROXY = os.getenv('NO_PROXY') or os.getenv('no_proxy') or ''
 TIMEOUT = os.getenv('TIMEOUT', '60')
+REQUEST_LEN = 65535
 
+XVFB_DISPLAY = ':99'
+XVFB_BIN = '/usr/bin/Xvfb'
+XVFB_ARGS = ['-dpi', '96', '-screen', '0', '1024x768x24', '-ac', '+extension', 'GLX', '+render', '-noreset', '-nolisten', 'tcp']
+XVFB_WAIT = 10
+USE_XVFB = os.getenv('USE_XVFB', '0') == '1'
 
-def write(p, s):
-    with open(p, 'wt') as fp:
-        s = '\n'.join(line.strip() for line in s.strip().splitlines())
-        fp.write(s.strip() + '\n')
-    _(f'chmod 666 {p}')
+HOME_DIR = '/qgis'
+RUN_DIR = '/vrun'
 
+QGIS_INI_PATH = f'{HOME_DIR}/profiles/default/QGIS/QGIS3.ini'
+APACHE_CONF_PATH = f'{RUN_DIR}/apache.conf'
 
-# prepare the qgis environment
-# ------------------------------------------------------------------------------------
-
-
-def _from_env(default):
-    return lambda k: os.getenv(k, default)
-
-
-class QgisEnv:
-    QGIS_PREFIX_PATH = '/usr'
-
-    GDAL_DEFAULT_WMS_CACHE_PATH = '/qgis/cache/gdal'
-    GDAL_FIX_ESRI_WKT = 'GEOGCS'
-
-    QGIS_OPTIONS_PATH = '/qgis/profiles/default'
-    QGIS_GLOBAL_SETTINGS_FILE = '/qgis/profiles/default/QGIS/QGIS3.ini'
-    QGIS_CUSTOM_CONFIG_PATH = '/qgis'
-
-    # qgis server:
-    # https://docs.qgis.org/3.28/en/docs/server_manual/config.html
-
-    QGIS_PLUGINPATH = ''
-    QGIS_PROJECT_FILE = ''
-
-    QGIS_SERVER_ALLOWED_EXTRA_SQL_TOKENS = _from_env('')
-    QGIS_SERVER_API_RESOURCES_DIRECTORY = ''
-    QGIS_SERVER_API_WFS3_MAX_LIMIT = ''
-    QGIS_SERVER_CACHE_DIRECTORY = '/qgis/cache/server'
-    QGIS_SERVER_CACHE_SIZE = _from_env('10000000')
-    QGIS_SERVER_DISABLE_GETPRINT = ''
-    QGIS_SERVER_FORCE_READONLY_LAYERS = _from_env('1')
-    QGIS_SERVER_IGNORE_BAD_LAYERS = _from_env('1')
-    QGIS_SERVER_LANDING_PAGE_PREFIX = ''
-    QGIS_SERVER_LANDING_PAGE_PROJECTS_DIRECTORIES = ''
-    QGIS_SERVER_LANDING_PAGE_PROJECTS_PG_CONNECTIONS = ''
-    QGIS_SERVER_LOG_FILE = ''
-    QGIS_SERVER_LOG_LEVEL = 2
-    QGIS_SERVER_LOG_PROFILE = 0
-    QGIS_SERVER_LOG_STDERR = 0
-    QGIS_SERVER_MAX_THREADS = 0
-    QGIS_SERVER_OVERRIDE_SYSTEM_LOCALE = _from_env('')
-    QGIS_SERVER_PARALLEL_RENDERING = 0
-    QGIS_SERVER_PROJECT_CACHE_CHECK_INTERVAL = _from_env('')
-    QGIS_SERVER_PROJECT_CACHE_STRATEGY = _from_env('filesystem')
-    QGIS_SERVER_SERVICE_URL = ''
-    QGIS_SERVER_SHOW_GROUP_SEPARATOR = _from_env('')
-    QGIS_SERVER_TRUST_LAYER_METADATA = _from_env(0)
-    QGIS_SERVER_WCS_SERVICE_URL = ''
-    QGIS_SERVER_WFS_SERVICE_URL = ''
-    QGIS_SERVER_WMS_MAX_HEIGHT = ''
-    QGIS_SERVER_WMS_MAX_WIDTH = ''
-    QGIS_SERVER_WMS_SERVICE_URL = ''
-    QGIS_SERVER_WMTS_SERVICE_URL = ''
-
-
-qgis_env = f'export QGIS_DEBUG={QGIS_DEBUG}\n'
-
-for key, val in vars(QgisEnv).items():
-    if key.startswith('_'):
-        continue
-    if callable(val):
-        val = val(key)
-    if val:
-        qgis_env += f'export {key}={val}\n'
-
-
-# prepare extra fastcgi params for nginx
-# ------------------------------------------------------------------------------------
-
-# these vars must be passed as fastcgi_param because uwsgi worker-exec'd
-# FastCGI processes don't reliably inherit the shell environment
-
-EXTRA_FCGI_PARAMS = {
-    'PGSERVICEFILE': PGSERVICEFILE,
+QGIS_ENV_FIXED = {
+    'DISPLAY': XVFB_DISPLAY,
+    'QT_QPA_PLATFORM': 'offscreen',
+    'LC_ALL': 'C.UTF-8',
+    'XDG_RUNTIME_DIR': '/tmp/xdg',
+    'QGIS_PREFIX_PATH': '/usr',
+    'GDAL_DEFAULT_WMS_CACHE_PATH': f'{HOME_DIR}/cache/gdal',
+    'QGIS_OPTIONS_PATH': f'{HOME_DIR}/profiles/default',
+    'QGIS_GLOBAL_SETTINGS_FILE': QGIS_INI_PATH,
+    'QGIS_CUSTOM_CONFIG_PATH': HOME_DIR,
+    'QGIS_SERVER_CACHE_DIRECTORY': f'{HOME_DIR}/cache/server',
+    'HOME': HOME_DIR,
+    'PROJ_USER_WRITABLE_DIRECTORY': f'{HOME_DIR}/cache/proj',
 }
 
-extra_fcgi_params = '\n'.join(
-    f'fastcgi_param {key} {val};'
-    for key, val in EXTRA_FCGI_PARAMS.items()
-    if val  # fmt:skip
-)
+# qgis server:
+# https://docs.qgis.org/3.44/en/docs/server_manual/config.html
+
+QGIS_ENV_DEFAULTS = {
+    'QGIS_DEBUG': '0',
+    'GDAL_CACHEMAX': '256',
+    'GDAL_FIX_ESRI_WKT': 'GEOGCS',
+    'GDAL_HTTP_CONNECTTIMEOUT': '10',
+    'GDAL_HTTP_TIMEOUT': TIMEOUT,
+    'PGAPPNAME': 'qgis-server',
+    'PGCONNECT_TIMEOUT': '10',
+    'QGIS_SERVER_CACHE_SIZE': '10000000',
+    'QGIS_SERVER_FORCE_READONLY_LAYERS': '1',
+    'QGIS_SERVER_IGNORE_BAD_LAYERS': '1',
+    'QGIS_SERVER_LOG_LEVEL': '2',
+    'QGIS_SERVER_LOG_STDERR': '1',
+    'QGIS_SERVER_PARALLEL_RENDERING': '0',
+    'QGIS_SERVER_PROJECT_CACHE_STRATEGY': 'filesystem',
+    'QGIS_SERVER_TRUST_LAYER_METADATA': '1',
+}
+
+FCGID_DEFAULTS = {
+    'FCGID_MAX_PROCESSES': QGIS_WORKERS,
+    'FCGID_MAX_PROCESSES_PER_CLASS': QGIS_WORKERS,
+    'FCGID_MAX_REQUESTS_PER_PROCESS': '1000',
+    'FCGID_IO_TIMEOUT': TIMEOUT,
+    'FCGID_BUSY_TIMEOUT': TIMEOUT,
+    'FCGID_BUSY_SCAN_INTERVAL': '2',
+    'FCGID_MAX_REQUEST_LEN': str(REQUEST_LEN),
+}
 
 
-# create qgis runtime dirs
-# ------------------------------------------------------------------------------------
+def main():
+    # started as root: create the user, drop privileges and re-run this script as that user,
+    # so that /proc/self and the stdout/stderr pipes belong to it (apache reopens /proc/self/fd/1,2 for logging)
+    if os.getuid() == 0:
+        uid = int(os.getenv('GWS_UID', '1000'))
+        gid = int(os.getenv('GWS_GID', '1000'))
+        prepare_user(uid, gid)
+        os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)])
 
-_('mkdir -p /qgis/profiles/default/QGIS')
-_('mkdir -p /qgis/profiles/profiles/default/QGIS')
-_('mkdir -p /qgis/cache/gdal')
-_('mkdir -p /qgis/cache/network')
-_('mkdir -p /qgis/cache/server')
-_(f'chown -R {GWS_UID}:{GWS_GID} /qgis')
+    # from here on, running as GWS_UID (if started as root) or as the user set with docker run -u
 
-_('mkdir -p /vrun')
-_('chmod 777 /vrun')
-_(f'chown -R {GWS_UID}:{GWS_GID} /vrun')
+    create_work_dirs()
 
-# qgis config
-# ------------------------------------------------------------------------------------
+    qgis_ini = get_qgis_ini()
+    write(QGIS_INI_PATH, qgis_ini, 0o600)
 
-svg_paths = '/usr/share/qgis/svg,/usr/share/alkisplugin/svg'
-if SVG_PATHS:
-    svg_paths += ',' + SVG_PATHS
+    qgis_env = get_qgis_env()
+    fcgid_opts = get_fcgid_opts()
+    apache_conf = get_apache_conf(qgis_env, fcgid_opts)
+    write(APACHE_CONF_PATH, apache_conf)
 
-qgis_ini = rf"""
-[cache]
-directory=/qgis/cache/network
-size=@Variant(\0\0\0\x81\0\0\0\0\0@\0\0)
+    subprocess.run(['/usr/bin/qgis_mapserv.fcgi', '--version'], stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    empty_dir('/tmp', ignore_errors=True)
 
-[qgis]
-symbolsListGroupsIndex=0
+    if USE_XVFB:
+        start_xvfb()
 
-[svg]
-searchPathsForSVG={svg_paths}
-"""
+    os.execv('/usr/sbin/apache2', ['/usr/sbin/apache2', '-f', APACHE_CONF_PATH, '-D', 'FOREGROUND'])
 
-if HTTP_PROXY:
+
+def prepare_user(uid, gid):
+    # apache logs to /proc/self/fd/1 and 2, to reopen them as the user, the stdout/stderr pipes must belong to the user
+    # and the process must be re-run (after setuid alone, /proc/self belongs to root)
+
+    try:
+        grp.getgrgid(gid)
+    except KeyError:
+        subprocess.run(['groupadd', '-g', str(gid), f'group_{gid}'], check=True)
+
+    try:
+        pwd.getpwuid(uid)
+    except KeyError:
+        subprocess.run(['useradd', '-M', '-u', str(uid), '-g', str(gid), f'user_{uid}'], check=True)
+
+    # leftovers from a previous run may belong to another user
+    empty_dir(HOME_DIR)
+    empty_dir(RUN_DIR)
+
+    for fd in [1, 2]:
+        os.fchown(fd, uid, gid)
+
+    os.setgroups([])
+    os.setgid(gid)
+    os.setuid(uid)
+    os.environ['HOME'] = HOME_DIR
+
+
+def create_work_dirs():
+    # remove stale pid file, sockets etc. from a previous run
+    empty_dir(RUN_DIR)
+
+    for d in [
+        f'{HOME_DIR}/profiles/default/QGIS',
+        f'{HOME_DIR}/cache/gdal',
+        f'{HOME_DIR}/cache/network',
+        f'{HOME_DIR}/cache/proj',
+        f'{HOME_DIR}/cache/server',
+        f'{RUN_DIR}/apache',
+        f'{RUN_DIR}/fcgid',
+    ]:
+        os.makedirs(d, exist_ok=True)
+
+
+def get_qgis_ini():
+    svg_paths = '/usr/share/qgis/svg,/usr/share/alkisplugin/svg'
+    if SVG_PATHS:
+        svg_paths += ',' + SVG_PATHS
+
+    qgis_ini = f"""
+        [cache]
+        directory={HOME_DIR}/cache/network
+
+        [network]
+        network-timeout={int(TIMEOUT) * 1000}
+
+        [svg]
+        searchPathsForSVG={svg_paths}
+    """
+
+    if HTTP_PROXY:
+        qgis_ini += get_qgis_ini_proxy()
+
+    return qgis_ini
+
+
+def get_qgis_ini_proxy():
     p = urllib.parse.urlsplit(HTTP_PROXY)
-    qgis_ini += f"""
-    [proxy]
-    proxyEnabled=true
-    proxyType=HttpProxy
-    proxyHost={p.hostname}
-    proxyPort={p.port}
-    proxyUser={p.username}
-    proxyPassword={p.password}
+    cfg = f"""
+        [proxy]
+        proxyEnabled=true
+        proxyType=HttpProxy
+        proxyHost={p.hostname}
+    """
+    if p.port:
+        cfg += f'proxyPort={p.port}\n'
+    if p.username:
+        cfg += f'proxyUser={urllib.parse.unquote(p.username)}\n'
+    if p.password:
+        cfg += f'proxyPassword={urllib.parse.unquote(p.password)}\n'
+
+    # qgis matches noProxyUrls as url prefixes, so only plain host names from NO_PROXY work
+    no_proxy_urls = []
+    for host in NO_PROXY.split(','):
+        host = host.strip()
+        if host:
+            no_proxy_urls.append(f'http://{host}')
+            no_proxy_urls.append(f'https://{host}')
+    if no_proxy_urls:
+        cfg += f'noProxyUrls={",".join(no_proxy_urls)}\n'
+
+    return cfg
+
+
+def get_qgis_env():
+    qgis_env = dict(QGIS_ENV_DEFAULTS)
+
+    for key, val in os.environ.items():
+        if key in QGIS_ENV_FIXED or '\n' in val:
+            continue
+        qgis_env[key] = val
+
+    qgis_env.update(QGIS_ENV_FIXED)
+    return qgis_env
+
+
+def get_fcgid_opts():
+    env = dict(FCGID_DEFAULTS)
+
+    for key, val in os.environ.items():
+        if key.startswith('FCGID_'):
+            env[key] = val
+
+    fcgid_opts = {}
+    for key, val in env.items():
+        name = ''.join(w.capitalize() for w in key.split('_'))
+        fcgid_opts[name] = val
+
+    return fcgid_opts
+
+
+def get_apache_conf(qgis_env, fcgid_opts):
+    # libfcgi replaces the process environment with request params on each request,
+    # so the qgis env is passed both as the initial process env and as request params
+
+    env_conf = ''
+    for key, val in sorted(qgis_env.items()):
+        env_conf += f'FcgidInitialEnv {key} {apache_quote(val)}\n'
+    for key, val in sorted(qgis_env.items()):
+        env_conf += f'SetEnv {key} {apache_quote(val)}\n'
+
+    fcgid_conf = ''
+    for key, val in sorted(fcgid_opts.items()):
+        fcgid_conf += f'{key} {val}\n'
+
+    return rf"""
+        ServerRoot /etc/apache2
+        ServerName localhost
+        DefaultRuntimeDir {RUN_DIR}/apache
+        PidFile {RUN_DIR}/apache/apache.pid
+        Listen 80
+
+        LoadModule mpm_event_module /usr/lib/apache2/modules/mod_mpm_event.so
+        LoadModule authz_core_module /usr/lib/apache2/modules/mod_authz_core.so
+        LoadModule alias_module /usr/lib/apache2/modules/mod_alias.so
+        LoadModule rewrite_module /usr/lib/apache2/modules/mod_rewrite.so
+        LoadModule headers_module /usr/lib/apache2/modules/mod_headers.so
+        LoadModule env_module /usr/lib/apache2/modules/mod_env.so
+        LoadModule fcgid_module /usr/lib/apache2/modules/mod_fcgid.so
+
+        ErrorLog /proc/self/fd/2
+        LogLevel warn
+        LogFormat "%h %l %u %t \"%r\" %>s %b \"%{{Referer}}i\" \"%{{User-Agent}}i\"" combined
+        CustomLog /proc/self/fd/1 combined
+
+        Timeout {TIMEOUT}
+        LimitRequestLine {REQUEST_LEN}
+        LimitRequestFieldSize {REQUEST_LEN}
+
+        FcgidIPCDir {RUN_DIR}/fcgid
+        FcgidProcessTableFile {RUN_DIR}/fcgid/shm
+
+        {fcgid_conf}
+        {env_conf}
+
+        <Directory />
+            AllowOverride None
+            Require all denied
+        </Directory>
+
+        <Directory /usr/bin>
+            <Files qgis_mapserv.fcgi>
+                SetHandler fcgid-script
+                Options +ExecCGI
+                Require all granted
+            </Files>
+        </Directory>
+
+        Alias /qgis_mapserv.fcgi /usr/bin/qgis_mapserv.fcgi
+
+        RewriteEngine On
+        RewriteRule ^ /qgis_mapserv.fcgi [PT,L]
+
+        Header set Access-Control-Allow-Origin "*"
     """
 
 
-write('/qgis/profiles/default/QGIS/QGIS3.ini', qgis_ini)
-_(f'chown -R {GWS_UID}:{GWS_GID} /qgis')
+def start_xvfb():
+    subprocess.Popen([XVFB_BIN, XVFB_DISPLAY, *XVFB_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-# uwsgi config
-# ------------------------------------------------------------------------------------
+    xvfb_socket = '/tmp/.X11-unix/X' + XVFB_DISPLAY.lstrip(':')
+    t = time.monotonic() + XVFB_WAIT
+    while not os.path.exists(xvfb_socket):
+        if time.monotonic() > t:
+            sys.exit(f'Xvfb did not start in {XVFB_WAIT}s')
+        time.sleep(0.2)
 
-uwsgi_ini = rf"""
-[uwsgi]
-uid = {GWS_UID}
-gid = {GWS_GID}
 
-chmod-socket = 666
-die-on-term = true
-fastcgi-socket = /vrun/uwsgi.sock
-harakiri = {TIMEOUT}
-master = true
-pidfile = /vrun/uwsgi.pid
-processes = {QGIS_WORKERS}
-reload-mercy = 5
-threads = 0
-vacuum = true
-worker-exec = /usr/bin/qgis_mapserv.fcgi
-worker-reload-mercy = 5
+def write(path, text, mode=0o644):
+    with open(path, 'wt') as fp:
+        text = '\n'.join(line.strip() for line in text.strip().splitlines())
+        fp.write(text.strip() + '\n')
+    os.chmod(path, mode)
 
-buffer-size = 65535
-listen = 256
-max-requests = 1000
-thunder-lock = true
 
-daemonize = /vrun/uwsgi-start.log
-logger = syslog:QGIS,local6
-log-master = true
+def empty_dir(path, ignore_errors=False):
+    for name in os.listdir(path):
+        p = os.path.join(path, name)
+        if os.path.isdir(p) and not os.path.islink(p):
+            shutil.rmtree(p, ignore_errors=ignore_errors)
+            continue
+        try:
+            os.unlink(p)
+        except OSError:
+            if not ignore_errors:
+                raise
 
-# force line-buffered stderr for workers to prevent split log lines
-# glibc >= 2.39 (Ubuntu 24.04+) splits unbuffered fprintf into separate write() calls
-# which breaks SOCK_SEQPACKET log datagrams in uwsgi's log pipe
-env = LD_PRELOAD=/usr/libexec/coreutils/libstdbuf.so
-env = _STDBUF_E=L
-"""
 
-write('/uwsgi.ini', uwsgi_ini)
+def apache_quote(val):
+    return '"' + str(val).replace('"', '\\"') + '"'
 
-# nginx config
-# ------------------------------------------------------------------------------------
 
-nginx_conf = rf"""
-user {USER_NAME};
-worker_processes auto;
-pid /vrun/nginx.pid;
-daemon off;
-error_log syslog:server=unix:/dev/log,nohostname,tag=NGINX warn;
-
-events {{
-    worker_connections 512;
-}}
-
-http {{
-    access_log syslog:server=unix:/dev/log,nohostname,tag=NGINX;
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    client_max_body_size 16m;
-    server {{
-        listen 80;
-        location / {{
-            gzip off;
-            add_header 'Access-Control-Allow-Origin' *;
-            
-            fastcgi_pass unix:/vrun/uwsgi.sock;
-            fastcgi_read_timeout {TIMEOUT}s;
-            fastcgi_buffering on;
-            fastcgi_buffer_size 256k;
-            fastcgi_buffers 16 256k;
-            fastcgi_busy_buffers_size 512k;
-            
-            include /etc/nginx/fastcgi_params;
-            {extra_fcgi_params}
-            
-            # replace mapproxy forward params (e.g. LAYERS__gws) with their real names
-            
-            if ($args ~* (.*?)__gws(.*)) {{
-                set $args $1$2;
-            }}
-            if ($args ~* (.*?)__gws(.*)) {{
-                set $args $1$2;
-            }}
-            if ($args ~* (.*?)__gws(.*)) {{
-                set $args $1$2;
-            }}
-        }}
-    }}
-}}
-"""
-
-write('/nginx.conf', nginx_conf)
-
-# rsyslogd config
-# ------------------------------------------------------------------------------------
-
-# silence some warnings unless debugging
-
-silence = """
-# 'QFont::setPointSize: Point size must be greater than 0'
-:msg, contains, "QFont::setPointSizeF" stop
-
-# 'Using QCharRef with an index pointing outside the valid range of a QString'
-:msg, contains, "Using QCharRef" stop
-"""
-
-if QGIS_DEBUG != '0':
-    silence = ''
-
-rsyslogd_conf = rf"""
-module(
-    load="imuxsock"
-    SysSock.UsePIDFromSystem="on"
-)
-
-template(name="gws" type="list") {{
-    property(name="timestamp" dateFormat="mysql")
-    constant(value=" ")
-    property(name="syslogtag")
-    property(name="msg" spifno1stsp="on" )
-    property(name="msg" droplastlf="on" )
-    constant(value="\\n")
-}}
-
-module(
-    load="builtin:omfile" 
-    Template="gws"
-)
-
-{silence}
-
-*.* /dev/stdout
-"""
-
-write('/rsyslogd.conf', rsyslogd_conf)
-
-# main startup script
-# ------------------------------------------------------------------------------------
-
-qgis_start_configured = f"""
-#!/bin/bash
-
-export DISPLAY=:99
-export LC_ALL=C.UTF-8
-export XDG_RUNTIME_DIR=/tmp/xdg
-
-{qgis_env}
-
-rm -fr /tmp/*
-
-XVFB=/usr/bin/Xvfb
-XVFBARGS='-dpi 96 -screen 0 1024x768x24 -ac +extension GLX +render -noreset -nolisten tcp'
-
-until start-stop-daemon --status --exec $XVFB; do
-    echo 'waiting for xvfb...'
-    start-stop-daemon --start --background --exec $XVFB --oknodo -- $DISPLAY $XVFBARGS
-    sleep 0.5
-done
-
-rsyslogd -i /vrun/rsyslogd.pid -f /rsyslogd.conf
-uwsgi /uwsgi.ini
-exec nginx -c /nginx.conf
-"""
-
-write('/qgis-start-configured', qgis_start_configured)
-_('chmod 777 /qgis-start-configured')
-
-# done
-# ------------------------------------------------------------------------------------
-
-_('/usr/bin/qgis_mapserv.fcgi  2>&1 | grep version')
-
-print('-' * 80)
-print(qgis_env)
-print(extra_fcgi_params)
-print('-' * 80)
+if __name__ == '__main__':
+    main()
