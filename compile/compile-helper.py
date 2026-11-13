@@ -1,12 +1,12 @@
 """Helper script.
 
 
-helper print_vars <path-to-cmake-LH-output> [<cmake-options>]
-    merge the cmake -LH output with "cmake-vars.json" and print the result as json
+helper print_vars <path-to-cmake-vars-json> <path-to-cmake-LH-output> [<cmake-options>]
+    merge the cmake -LH output with <path-to-cmake-vars-json> and print the result as json
     <cmake-options> are the -D options passed to cmake, their values are not taken as defaults
 
-helper cmake_cache
-    print a cmake initial cache file (for "cmake -C") with the overrides ("set") from "cmake-vars.json"
+helper cmake_cache <path-to-cmake-vars-json>
+    print a cmake initial cache file (for "cmake -C") with the overrides ("set") from <path-to-cmake-vars-json>
 
 helper shlibdeps <package-dir>
     print Debian packages for shared libraries the ELF files in <package-dir> are linked against (via dpkg-shlibdeps)
@@ -21,7 +21,7 @@ import sys
 import tempfile
 
 
-def print_vars(path, cmake_opts):
+def print_vars(vars_path, path, cmake_opts):
     rx = r'//\s*(.+)\n(\S+?):(\S+)\s*=\s*(\S+)'
     """
     Look for lines like
@@ -40,7 +40,7 @@ def print_vars(path, cmake_opts):
         if m:
             passed.add(m.group(1))
 
-    existing = read_vars()
+    existing = read_vars(vars_path)
 
     added = []
     removed = []
@@ -83,8 +83,8 @@ def print_vars(path, cmake_opts):
             print(f'{title}: {name}', file=sys.stderr)
 
 
-def cmake_cache():
-    for var, e in sorted(read_vars().items()):
+def cmake_cache(vars_path):
+    for var, e in sorted(read_vars(vars_path).items()):
         if 'set' in e:
             print(f'set({var} {e["set"]} CACHE BOOL "")')
 
@@ -123,8 +123,8 @@ def shlibdeps(package_dir):
     print('\n'.join(sorted(packages)))
 
 
-def read_vars():
-    return json.loads(read_file(os.path.dirname(__file__) + '/cmake-vars.json'))
+def read_vars(vars_path):
+    return json.loads(read_file(vars_path))
 
 
 def read_file(path):
@@ -135,10 +135,10 @@ def read_file(path):
 if __name__ == '__main__':
 
     if sys.argv[1] == 'print_vars':
-        print_vars(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else '')
+        print_vars(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else '')
 
     if sys.argv[1] == 'cmake_cache':
-        cmake_cache()
+        cmake_cache(sys.argv[2])
 
     if sys.argv[1] == 'shlibdeps':
         shlibdeps(sys.argv[2])

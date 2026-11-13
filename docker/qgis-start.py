@@ -31,7 +31,12 @@ USE_XVFB = os.getenv('USE_XVFB', '0') == '1'
 HOME_DIR = '/qgis'
 RUN_DIR = '/vrun'
 
-QGIS_INI_PATH = f'{HOME_DIR}/profiles/default/QGIS/QGIS3.ini'
+QGIS_INI_PATHS = [
+    f'{HOME_DIR}/profiles/default/QGIS/QGIS3.ini',
+    f'{HOME_DIR}/profiles/default/QGIS/QGIS4.ini',
+    f'{HOME_DIR}/.config/Unknown Organization/qgis_mapserv.fcgi.conf',
+]
+
 APACHE_CONF_PATH = f'{RUN_DIR}/apache.conf'
 
 QGIS_ENV_FIXED = {
@@ -42,7 +47,6 @@ QGIS_ENV_FIXED = {
     'QGIS_PREFIX_PATH': '/usr',
     'GDAL_DEFAULT_WMS_CACHE_PATH': f'{HOME_DIR}/cache/gdal',
     'QGIS_OPTIONS_PATH': f'{HOME_DIR}/profiles/default',
-    'QGIS_GLOBAL_SETTINGS_FILE': QGIS_INI_PATH,
     'QGIS_CUSTOM_CONFIG_PATH': HOME_DIR,
     'QGIS_SERVER_CACHE_DIRECTORY': f'{HOME_DIR}/cache/server',
     'HOME': HOME_DIR,
@@ -95,7 +99,8 @@ def main():
     create_work_dirs()
 
     qgis_ini = get_qgis_ini()
-    write(QGIS_INI_PATH, qgis_ini, 0o600)
+    for path in QGIS_INI_PATHS:
+        write(path, qgis_ini, 0o600)
 
     qgis_env = get_qgis_env()
     fcgid_opts = get_fcgid_opts()
@@ -144,6 +149,7 @@ def create_work_dirs():
 
     for d in [
         f'{HOME_DIR}/profiles/default/QGIS',
+        f'{HOME_DIR}/.config/Unknown Organization',
         f'{HOME_DIR}/cache/gdal',
         f'{HOME_DIR}/cache/network',
         f'{HOME_DIR}/cache/proj',
@@ -178,18 +184,17 @@ def get_qgis_ini():
 
 def get_qgis_ini_proxy():
     p = urllib.parse.urlsplit(HTTP_PROXY)
-    cfg = f"""
-        [proxy]
-        proxyEnabled=true
-        proxyType=HttpProxy
-        proxyHost={p.hostname}
-    """
+    opts = [
+        ('proxyEnabled', 'proxy-enabled', 'true'),
+        ('proxyType', 'proxy-type', 'HttpProxy'),
+        ('proxyHost', 'proxy-host', p.hostname),
+    ]
     if p.port:
-        cfg += f'proxyPort={p.port}\n'
+        opts.append(('proxyPort', 'proxy-port', p.port))
     if p.username:
-        cfg += f'proxyUser={urllib.parse.unquote(p.username)}\n'
+        opts.append(('proxyUser', 'proxy-user', urllib.parse.unquote(p.username)))
     if p.password:
-        cfg += f'proxyPassword={urllib.parse.unquote(p.password)}\n'
+        opts.append(('proxyPassword', 'proxy-password', urllib.parse.unquote(p.password)))
 
     # qgis matches noProxyUrls as url prefixes, so only plain host names from NO_PROXY work
     no_proxy_urls = []
@@ -199,7 +204,12 @@ def get_qgis_ini_proxy():
             no_proxy_urls.append(f'http://{host}')
             no_proxy_urls.append(f'https://{host}')
     if no_proxy_urls:
-        cfg += f'noProxyUrls={",".join(no_proxy_urls)}\n'
+        opts.append(('noProxyUrls', 'no-proxy-urls', ','.join(no_proxy_urls)))
+
+    cfg = '\n[proxy]\n'
+    for key3, key4, val in opts:
+        cfg += f'{key3}={val}\n'
+        cfg += f'{key4}={val}\n'
 
     return cfg
 

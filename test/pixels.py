@@ -6,7 +6,10 @@ pixels.py <image-path> <x,y> [<x,y> ...]
 
 import sys
 
-from PyQt5.QtGui import QGuiApplication, QImage
+try:
+    from PyQt6.QtGui import QGuiApplication, QImage
+except ImportError:
+    from PyQt5.QtGui import QGuiApplication, QImage
 
 
 def main():

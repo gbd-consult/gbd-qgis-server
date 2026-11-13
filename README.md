@@ -50,7 +50,7 @@ depend on is saved as `shlibdeps.lst` in the package and later installed in the 
 
 ### cmake variables
 
-Compilation options are kept in `compile/cmake-vars.json`:
+Compilation options are kept per QGIS major version in `compile/cmake-vars-3.json` and `compile/cmake-vars-4.json`:
 
 ```
 {
@@ -72,7 +72,7 @@ When upgrading to a new QGIS version, run
 /opt/gbd/gbd-qgis-server/make.sh vars 3.44.15
 ```
 
-This configures QGIS with default settings, updates `compile/cmake-vars.json` (keeping the `"set"` overrides) and
+This configures QGIS with default settings, updates `compile/cmake-vars-{major}.json` (keeping the `"set"` overrides) and
 prints added, removed and changed variables. Review the diff before compiling.
 
 ## Building the Docker Image
@@ -103,9 +103,10 @@ Options:
 |-------------|--------------------------------------------------------|
 | `-latest`   | also tag the image with the major version, e.g. `3.44` |
 
-The image installs the packages from `docker/apt.lst` and from `shlibdeps.lst` of the compiled package. `docker/apt.lst`
-lists Apache, Python and packages that QGIS loads at runtime and that `dpkg-shlibdeps` cannot detect (Qt SQL drivers,
-Qt image format plugins, QCA plugins, PyQt5).
+The image is based on Ubuntu 24.04 for QGIS 3.x and Ubuntu 26.04 for QGIS 4.x. It installs the packages from
+`docker/apt-{major}.lst` and from `shlibdeps.lst` of the compiled package. `docker/apt-{major}.lst` lists Apache, Python
+and packages that QGIS loads at runtime and that `dpkg-shlibdeps` cannot detect (Qt SQL drivers, Qt image format
+plugins, QCA plugins, PyQt).
 
 SVG symbols from the ALKIS plugin (`docker/alkisplugin`) are installed in `/usr/share/alkisplugin`.
 
@@ -123,7 +124,8 @@ A second container is then started with `HTTP_PROXY` pointing to a test proxy (`
 separate Docker network. It checks that a remote raster (`/vsicurl/`, read by GDAL) and a remote SVG picture in a print
 layout (read by the QGIS network manager) are loaded through the proxy.
 
-The check `proxy: QGIS svg picture, first request` is expected to fail, see known issues below.
+The check `proxy: QGIS svg picture, first request` is expected to fail, and for QGIS 4, also
+`WMS GetPrint png html frame`, see known issues below.
 
 `-debug` tests the debug image, `-keep` leaves the test container running.
 
@@ -131,6 +133,15 @@ The check `proxy: QGIS svg picture, first request` is expected to fail, see know
 
 Remote images (`http://...`, `https://...` paths) in print layouts do not work: QGIS renders a placeholder instead of
 the image, and the QGIS process may crash. Use local paths.
+
+QGIS 4: HTML frames in print layouts are rendered empty. QGIS 4 is built with Qt 6 without WebKit, and the layout HTML
+frame (`QgsLayoutItemHtml`) still renders only through WebKit (checked in 4.2.3). HTML labels work.
+
+QGIS 4: the server ignores `QGIS3.ini`. Worker threads (e.g. remote resources in print layouts) read
+`/qgis/profiles/default/QGIS/QGIS4.ini` with the QGIS 4 key names (`[proxy] proxy-enabled, proxy-host, ...`). The main
+thread binds its settings before the server sets the application name and reads
+`$HOME/.config/Unknown Organization/qgis_mapserv.fcgi.conf`, where the QGIS 3 key names are migrated. The start script
+therefore writes the same settings, with both QGIS 3 and QGIS 4 proxy keys, to all three files.
 
 ## Profiling
 
@@ -208,7 +219,6 @@ These variables are always set by the image and cannot be overridden:
 | QGIS_PREFIX_PATH             | /usr                                  |
 | QGIS_CUSTOM_CONFIG_PATH      | /qgis                                 |
 | QGIS_OPTIONS_PATH            | /qgis/profiles/default                |
-| QGIS_GLOBAL_SETTINGS_FILE    | /qgis/profiles/default/QGIS/QGIS3.ini |
 | QGIS_SERVER_CACHE_DIRECTORY  | /qgis/cache/server                    |
 | GDAL_DEFAULT_WMS_CACHE_PATH  | /qgis/cache/gdal                      |
 | HOME                         | /qgis                                 |

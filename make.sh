@@ -45,6 +45,17 @@ fi
 
 BUILD_IMAGE=qgis-build-$VERSION-$ARCH
 
+case $VERSION in
+3.*)
+    BUILD_DOCKERFILE=qgis3-qt5-build-deps.dockerfile
+    CMAKE_VARS=cmake-vars-3.json
+    ;;
+*)
+    BUILD_DOCKERFILE=qgis3-ubuntu-qt6-build-deps.dockerfile
+    CMAKE_VARS=cmake-vars-4.json
+    ;;
+esac
+
 BASE_DIR=$(dirname $(realpath $BASH_SOURCE))
 BUILD_DIR=/opt/gbd/gbd-qgis-server-build
 
@@ -100,7 +111,7 @@ docker)
 
     docker build \
         --progress=plain \
-        -f qgis3-qt5-build-deps.dockerfile \
+        -f $BUILD_DOCKERFILE \
         --platform=linux/$ARCH \
         -t $BUILD_IMAGE \
         .
@@ -121,7 +132,7 @@ compile)
 vars-in-container)
     prepare_build_in_container
     cd /QGIS/_BUILD
-    CMAKE_OPTS="-DWITH_PDAL=NO -DWITH_SERVER=YES"
+    CMAKE_OPTS="-DWITH_PDAL=NO -DWITH_SERVER=YES -DWITH_INTERNAL_SPATIALINDEX=YES"
     RC=0
     cmake $CMAKE_OPTS -LH .. > /tmp/vars 2> /tmp/vars.err || RC=$?
     if [ $RC -ne 0 ]; then
@@ -129,8 +140,8 @@ vars-in-container)
         cat /tmp/vars /tmp/vars.err
         exit 1
     fi
-    python3 /BASE_DIR/compile/compile-helper.py print_vars /tmp/vars "$CMAKE_OPTS" > /tmp/cmake-vars.json
-    cp /tmp/cmake-vars.json /BASE_DIR/compile/cmake-vars.json
+    python3 /BASE_DIR/compile/compile-helper.py print_vars /BASE_DIR/compile/$CMAKE_VARS /tmp/vars "$CMAKE_OPTS" > /tmp/cmake-vars.json
+    cp /tmp/cmake-vars.json /BASE_DIR/compile/$CMAKE_VARS
     ;;
 
 compile-in-container)
@@ -142,9 +153,9 @@ compile-in-container)
         INSTALL_TARGET=install
     fi
 
-    # copy sources, write cmake cache with our overrides from cmake-vars.json
+    # copy sources, write cmake cache with our overrides from $CMAKE_VARS
     prepare_build_in_container
-    python3 /BASE_DIR/compile/compile-helper.py cmake_cache > /QGIS/_BUILD/gbd_cache.cmake
+    python3 /BASE_DIR/compile/compile-helper.py cmake_cache /BASE_DIR/compile/$CMAKE_VARS > /QGIS/_BUILD/gbd_cache.cmake
 
     # configure and compile, link with lld, faster than the default GNU ld
     cd /QGIS/_BUILD

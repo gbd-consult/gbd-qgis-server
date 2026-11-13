@@ -1,0 +1,305 @@
+{
+    "AGGRESSIVE_SAFE_MODE": {
+        "desc": "Forces a aggressive safe mode where issues like unsafe thread access will resort in fatal exceptions",
+        "default": "FALSE"
+    },
+    "BINDINGS_GLOBAL_INSTALL": {
+        "desc": "Install bindings to global Python directory? (might need root)",
+        "default": "FALSE"
+    },
+    "CREATE_ZIP": {
+        "desc": "Create a ZIP package",
+        "default": "FALSE"
+    },
+    "ENABLE_COVERAGE": {
+        "desc": "Perform coverage tests?",
+        "default": "FALSE"
+    },
+    "ENABLE_HANATEST": {
+        "desc": "Enable HANA provider tests",
+        "default": "FALSE"
+    },
+    "ENABLE_LOCAL_BUILD_SHORTCUTS": {
+        "desc": "Disables some build steps which are only relevant for releases to speed up compilation time for development",
+        "default": "FALSE"
+    },
+    "ENABLE_MODELTEST": {
+        "desc": "Enable QT ModelTest (not for production)",
+        "default": "FALSE"
+    },
+    "ENABLE_MSSQLTEST": {
+        "desc": "Enable MSSQL provider tests",
+        "default": "FALSE"
+    },
+    "ENABLE_MSSQLTEST_CPP": {
+        "desc": "Enable MSSQL provider C++ tests",
+        "default": "FALSE"
+    },
+    "ENABLE_ORACLETEST": {
+        "desc": "Enable Oracle provider tests",
+        "default": "FALSE"
+    },
+    "ENABLE_PGTEST": {
+        "desc": "Enable PostgreSQL provider tests",
+        "default": "FALSE"
+    },
+    "ENABLE_TESTS": {
+        "desc": "Build unit tests?",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "ENABLE_UNITY_BUILDS": {
+        "desc": "Enable Unity builds, that is compiling several .cpp files in the same compilation unit (EXPERIMENTAL. Not recommended for production builds)",
+        "default": "OFF"
+    },
+    "GENERATE_COVERAGE_DOCS": {
+        "desc": "Generate coverage docs (requires lcov)?",
+        "default": "FALSE"
+    },
+    "PEDANTIC": {
+        "desc": "Determines if we should compile in pedantic mode.",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "PUSH_TO_CDASH": {
+        "desc": "Determines whether test results should be pushed to CDASH site",
+        "default": "FALSE"
+    },
+    "QGIS_INSTALL_SYS_LIBS": {
+        "desc": "If set to TRUE install all required system libs in the output package",
+        "default": "TRUE"
+    },
+    "SIP_GLOBAL_INSTALL": {
+        "desc": "Install sip source files to system sip directory? (might need root)",
+        "default": "FALSE"
+    },
+    "USE_CCACHE": {
+        "desc": "Use ccache",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "USE_OPENCL": {
+        "desc": "Use OpenCL",
+        "default": "ON"
+    },
+    "USE_PRECOMPILED_HEADERS": {
+        "desc": "Use precompiled headers",
+        "default": "ON"
+    },
+    "WERROR": {
+        "desc": "Treat build warnings as errors.",
+        "default": "FALSE"
+    },
+    "WITH_3D": {
+        "desc": "Determines whether QGIS 3D library should be built",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_ANALYSIS": {
+        "desc": "Determines whether QGIS analysis library should be built",
+        "default": "TRUE"
+    },
+    "WITH_APIDOC": {
+        "desc": "Determines whether the QGIS API doxygen documentation should be built",
+        "default": "FALSE"
+    },
+    "WITH_AUTH": {
+        "desc": "Determines whether AUTH support should be included",
+        "default": "TRUE"
+    },
+    "WITH_BINDINGS": {
+        "desc": "Determines whether Python bindings should be built",
+        "default": "ON"
+    },
+    "WITH_COPC": {
+        "desc": "Determines whether Cloud Optimized Point Cloud (COPC) support should be built",
+        "default": "TRUE"
+    },
+    "WITH_CRASH_HANDLER": {
+        "desc": "Determines whether the QGIS crash handler application should be built",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_CUSTOM_WIDGETS": {
+        "desc": "Determines whether QGIS custom widgets for Qt Designer should be built",
+        "default": "FALSE"
+    },
+    "WITH_DESKTOP": {
+        "desc": "Determines whether QGIS desktop should be built",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_DRACO": {
+        "desc": "Determines whether Draco support should be built",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_EPT": {
+        "desc": "Determines whether Entwine Point Cloud (EPT) support should be built",
+        "default": "TRUE"
+    },
+    "WITH_EXIV2": {
+        "desc": "Determines whether exiv2 functionality should be added",
+        "default": "TRUE"
+    },
+    "WITH_GEOGRAPHICLIB": {
+        "desc": "Determines whether GeographicLib support should be built",
+        "default": "FALSE"
+    },
+    "WITH_GRASS7": {
+        "desc": "Determines whether GRASS 7 plugin should be built",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_GRASS8": {
+        "desc": "Determines whether GRASS 8 plugin should be built",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_GRASS_PLUGIN": {
+        "desc": "Determines whether the GRASS c++ plugin should be built",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_GSL": {
+        "desc": "Determines whether GSL library should be used",
+        "default": "TRUE"
+    },
+    "WITH_GUI": {
+        "desc": "Determines whether QGIS GUI library should be built",
+        "default": "TRUE"
+    },
+    "WITH_HANA": {
+        "desc": "Determines whether SAP HANA Spatial support should be built",
+        "default": "FALSE"
+    },
+    "WITH_INTERNAL_LAZPERF": {
+        "desc": "Determines whether LazPerf should be built from internal copy (recommended)",
+        "default": "TRUE"
+    },
+    "WITH_INTERNAL_MDAL": {
+        "desc": "Determines whether MDAL should be built from internal copy (recommended)",
+        "default": "TRUE"
+    },
+    "WITH_INTERNAL_MESHOPTIMIZER": {
+        "desc": "Determines whether MESHOPTIMIZER should be built from internal copy",
+        "default": "TRUE"
+    },
+    "WITH_INTERNAL_NLOHMANN_JSON": {
+        "desc": "Determines whether the vendored copy of nlohmann-json should be used",
+        "default": "TRUE"
+    },
+    "WITH_INTERNAL_O2": {
+        "desc": "Download and locally include source of o2 library",
+        "default": "ON"
+    },
+    "WITH_INTERNAL_POLY2TRI": {
+        "desc": "Determines whether POLY2TRI should be built from internal copy",
+        "default": "TRUE"
+    },
+    "WITH_INTERNAL_QWT": {
+        "desc": "Determines if the internal copy of qwt should be used.",
+        "default": "FALSE"
+    },
+    "WITH_INTERNAL_SPATIALINDEX": {
+        "desc": "Determines whether spatialindex should be built from internal copy",
+        "default": "FALSE",
+        "set": "TRUE"
+    },
+    "WITH_OAUTH2_PLUGIN": {
+        "desc": "Determines whether OAuth2 authentication method plugin should be built",
+        "default": "TRUE"
+    },
+    "WITH_ORACLE": {
+        "desc": "Determines whether Oracle support should be built",
+        "default": "FALSE"
+    },
+    "WITH_PDAL": {
+        "desc": "Determines whether PDAL support should be built",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_PDF4QT": {
+        "desc": "Determines whether the embedded PDF4Qt library should be build for PDF and HTML to QPainter conversion",
+        "default": "FALSE"
+    },
+    "WITH_POSTGRESQL": {
+        "desc": "Determines whether POSTGRESQL support should be built",
+        "default": "TRUE"
+    },
+    "WITH_PYTHON": {
+        "desc": "Determines whether Python support should be built (disabling it will in particular disable processing)",
+        "default": "ON"
+    },
+    "WITH_PY_COMPILE": {
+        "desc": "Determines whether Python modules in staged or installed locations should be byte-compiled",
+        "default": "FALSE"
+    },
+    "WITH_QGIS_PROCESS": {
+        "desc": "Determines whether the standalone \"qgis_process\" tool should be built",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_QSPATIALITE": {
+        "desc": "Determines whether QSPATIALITE sql driver should be built",
+        "default": "FALSE"
+    },
+    "WITH_QTGAMEPAD": {
+        "desc": "Determines whether QtGamepad support should be enabled",
+        "default": "FALSE"
+    },
+    "WITH_QTPOSITIONING": {
+        "desc": "Determines whether QtPositioning support should be included",
+        "default": "TRUE"
+    },
+    "WITH_QTPRINTER": {
+        "desc": "Enable QtPrinter support",
+        "default": "TRUE"
+    },
+    "WITH_QTSERIALPORT": {
+        "desc": "Determines whether QtSerialPort should be tried for GPS positioning",
+        "default": "TRUE",
+        "set": "FALSE"
+    },
+    "WITH_QTWEBENGINE": {
+        "desc": "Enable QtWebEngine support",
+        "default": "TRUE"
+    },
+    "WITH_QUICK": {
+        "desc": "Determines whether QGIS Quick library should be built",
+        "default": "FALSE"
+    },
+    "WITH_SERVER": {
+        "desc": "Determines whether QGIS server should be built",
+        "default": "FALSE",
+        "set": "TRUE"
+    },
+    "WITH_SERVER_LANDINGPAGE_WEBAPP": {
+        "desc": "Determines whether QGIS server landingpage webapp should be built (requires nodejs and yarn)",
+        "default": "FALSE"
+    },
+    "WITH_SERVER_PLUGINS": {
+        "desc": "Determines whether QGIS server support for Python plugins should be built",
+        "default": "ON"
+    },
+    "WITH_SFCGAL": {
+        "desc": "Determines whether SFCGAL geometry support should be built",
+        "default": "FALSE"
+    },
+    "WITH_SPATIALITE": {
+        "desc": "Determines whether Spatialite support should be built (required for spatialite, virtual, wfs providers)",
+        "default": "TRUE"
+    },
+    "WITH_STAGED_PLUGINS": {
+        "desc": "Stage-install core Python plugins to run from build directory? (utilities and console are always staged)",
+        "default": "TRUE"
+    },
+    "WITH_TRACY": {
+        "desc": "Determines whether Tracy profiler support should be included",
+        "default": "FALSE"
+    },
+    "WITH_VCPKG": {
+        "desc": "Use the vcpkg submodule for dependency management.",
+        "default": "FALSE"
+    }
+}
